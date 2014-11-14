@@ -1,8 +1,8 @@
-nomad==1.9
 django==1.7.1
 jinja2==2.7.3
-configparser==3.5.0b2
 markupsafe==0.23
-trafaret==0.5.3
-termcolor==1.1.0
+configparser==3.5.0b2
+nomad==1.9
 opster==4.1
+termcolor==1.1.0
+trafaret==0.5.3

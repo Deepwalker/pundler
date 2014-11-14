@@ -1,0 +1,3 @@
+[submodule "distlib"]
+	path = distlib
+	url = git@github.com:vsajip/distlib.git

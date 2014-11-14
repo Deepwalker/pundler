@@ -7,9 +7,8 @@ from operator import itemgetter
 import subprocess
 import tempfile
 import shutil
-import yaml
-from distlib import locators
-from distlib.util import parse_requirement
+from dl import locators
+from dl.util import parse_requirement
 
 default_locator = locators.AggregatingLocator(
                     locators.JSONLocator(),
@@ -19,6 +18,8 @@ default_locator = locators.AggregatingLocator(
 locate = default_locator.locate
 
 
+class CommandFailed(Exception):
+    pass
 # import logging
 # import sys
 # root = logging.getLogger()
@@ -61,10 +62,14 @@ class PundlerFinder(object):
             spec.submodule_search_locations = [pundle['path']]
         return spec
 
-
 def install_finder():
     sys.meta_path.insert(0, PundlerFinder('.'))
 
+
+
+def require_pundledir():
+    if not op.exists('Pundledir'):
+        makedirs('Pundledir')
 
 def parse_requirements(requirements):
     def inner_parse(reqs):
@@ -90,8 +95,8 @@ def install(dist):
     name = dist.name
     tmpdir = tempfile.mkdtemp()
     print(name)
-    res = subprocess.call([
-        've/bin/pip', 'install',
+    res = subprocess.call([sys.executable,
+        '-m', 'pip', 'install',
         '--no-deps',
         '--install-option=%s' % ('--install-scripts=%s' % op.join(tmpdir, '.scripts')),
         '-t', tmpdir,
@@ -111,12 +116,14 @@ def install(dist):
 
 
 def install_requirements():
+    require_pundledir()
     installed = get_installed()
     if not op.isfile('requirements.txt'):
         raise Exception('File requirements.txt not found')
     requirements = [line.strip() for line in open('requirements.txt').readlines() if line.strip() and not line.startswith('#')]
     dists = parse_requirements(requirements)
     with open('freezed.txt', 'w') as f:
+        dists.sort(key=lambda d: d.name)
         f.write('\n'.join('%s==%s' % (dist.name.lower(), dist.version) for dist in dists))
         f.write('\n')
     for dist in dists:
