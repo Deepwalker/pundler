@@ -1,12 +1,15 @@
 import sys
 import os.path as op
 from os import makedirs, listdir
+import glob
+import json
 from importlib.machinery import ModuleSpec, SourceFileLoader
 from itertools import groupby
 from operator import itemgetter
 import subprocess
 import tempfile
 import shutil
+from collections import defaultdict
 from dl import locators
 from dl.util import parse_requirement
 
@@ -37,23 +40,35 @@ def group(itr, key):
 class PundlerFinder(object):
     def __init__(self, basepath):
         self.basepath = basepath
-        self.pundles = {}
+        self.pundles = defaultdict(list)
         for line in open('freezed.txt').readlines():
-            pundle = dict(zip(
-                ['name', 'version'],
-                [item.strip() for item in line.split('==')]
-            ))
-            pundle['path'] = op.join('Pundledir', '{name}-{version}'.format(**pundle), pundle['name'])
-            if not op.exists(pundle['path']):
-                pundle['path'] = op.join('Pundledir', '{name}-{version}'.format(**pundle), pundle['name'] + '.py')
-            self.pundles[pundle['name']] = pundle
+            if not line.strip():
+                continue
+            if '###' in line:
+                pundle = json.loads(line.split('###')[1].strip())
+            else:
+                pundle = dict(zip(
+                    ['name', 'version'],
+                    [item.strip() for item in line.split('==')]
+                ))
+                pundle['top_level'] = [pundle['name']]
+            base_dir = op.join('Pundledir', '{name}-{version}'.format(**pundle))
+            for top in pundle['top_level']:
+                top_pundle = pundle.copy()
+                top_pundle['path'] = op.join('Pundledir', '{name}-{version}'.format(**pundle), top)
+                if not op.exists(top_pundle['path']):
+                    top_pundle['path'] = op.join('Pundledir', '{name}-{version}'.format(**pundle), top + '.py')
+                if not op.exists(top_pundle['path']):
+                    continue
+                self.pundles[top].append(top_pundle)
+        print(self.pundles)
 
     def find_spec(self, fullname, path, target_module):
         if path is not None:
             return None
         if fullname not in self.pundles:
             return None
-        pundle = self.pundles[fullname]
+        pundle = self.pundles[fullname][0]
         if pundle['path'].endswith('.py'):
             path = pundle['path']
             is_package = False
@@ -108,7 +123,8 @@ def install(dist):
     if res != 0:
         raise Exception('%s was not installed due error' % name)
     print(tmpdir)
-    target_dir = op.join('Pundledir', '{}-{}'.format(name.lower(), dist.version))
+    dir_name = '{}-{}'.format(name.lower(), dist.version)
+    target_dir = op.join('Pundledir', dir_name)
     try:
         makedirs(target_dir)
     except FileExistsError:
@@ -125,14 +141,26 @@ def install_requirements():
         raise Exception('File requirements.txt not found')
     requirements = [line.strip() for line in open('requirements.txt').readlines() if line.strip() and not line.startswith('#')]
     dists = parse_requirements(requirements)
+    for dist in dists:
+        if not dist.version in installed.get(dist.name.lower(), []):
+            install(dist)
+        # provided top levels
+        top_level = glob.glob('Pundledir/{}-{}/*-info/top_level.txt'.format(dist.name.lower(), dist.version))
+        dist.top_level = set([dist.name.lower()])
+        if top_level:
+            dist.top_level = dist.top_level.union(set([line.strip() for line in open(top_level[0]) if line.strip()]))
+
+    # Create freezed version
     with open('freezed.txt', 'w') as f:
         dists.sort(key=lambda d: d.name)
-        f.write('\n'.join('%s==%s' % (dist.name.lower(), dist.version) for dist in dists))
+        for dist in dists:
+            meta = json.dumps({
+                'top_level': list(dist.top_level),
+                'name': dist.key,
+                'version': dist.version
+            })
+            f.write('{dist.key}=={dist.version} ### {meta}\n'.format(dist=dist, meta=meta))
         f.write('\n')
-    for dist in dists:
-        if dist.version in installed.get(dist.name.lower(), []):
-            continue
-        install(dist)
 
 
 def test():

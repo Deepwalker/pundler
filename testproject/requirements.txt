@@ -4,3 +4,4 @@ jinja2
 #git+https://github.com/Deepwalker/nomad.git#egg=nomad
 nomad
 configparser==3.5.0b2
+Pillow

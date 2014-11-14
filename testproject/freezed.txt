@@ -1,8 +1,10 @@
-django==1.7.1
-jinja2==2.7.3
-markupsafe==0.23
-configparser==3.5.0b2
-nomad==1.9
-opster==4.1
-termcolor==1.1.0
-trafaret==0.5.3
+django==1.7.1 ### {"version": "1.7.1", "top_level": ["django"], "name": "django"}
+jinja2==2.7.3 ### {"version": "2.7.3", "top_level": ["jinja2"], "name": "jinja2"}
+markupsafe==0.23 ### {"version": "0.23", "top_level": ["markupsafe"], "name": "markupsafe"}
+pillow==2.6.1 ### {"version": "2.6.1", "top_level": ["pillow", "PIL"], "name": "pillow"}
+configparser==3.5.0b2 ### {"version": "3.5.0b2", "top_level": ["configparser", "backports"], "name": "configparser"}
+nomad==1.9 ### {"version": "1.9", "top_level": ["nomad"], "name": "nomad"}
+opster==4.1 ### {"version": "4.1", "top_level": ["opster"], "name": "opster"}
+termcolor==1.1.0 ### {"version": "1.1.0", "top_level": ["termcolor"], "name": "termcolor"}
+trafaret==0.5.3 ### {"version": "0.5.3", "top_level": ["trafaret"], "name": "trafaret"}
+
