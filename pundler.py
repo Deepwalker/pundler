@@ -40,15 +40,18 @@ class PundlerFinder(object):
         self.pundles = {}
         for line in open('freezed.txt').readlines():
             pundle = dict(zip(
-                ['version', 'name', 'path'],
-                [item.strip() for item in line.split('###')]
+                ['name', 'version'],
+                [item.strip() for item in line.split('==')]
             ))
+            pundle['path'] = op.join('Pundledir', '{name}-{version}'.format(**pundle), pundle['name'])
+            if not op.exists(pundle['path']):
+                pundle['path'] = op.join('Pundledir', '{name}-{version}'.format(**pundle), pundle['name'] + '.py')
             self.pundles[pundle['name']] = pundle
 
     def find_spec(self, fullname, path, target_module):
         if path is not None:
             return None
-        if fullname not in pundles:
+        if fullname not in self.pundles:
             return None
         pundle = self.pundles[fullname]
         if pundle['path'].endswith('.py'):
