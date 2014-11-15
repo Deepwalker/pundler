@@ -151,7 +151,7 @@ def install_requirements():
         dists.sort(key=lambda d: d.name)
         for dist in dists:
             meta = json.dumps({
-                'top_level': list(dist.top_level),
+                'top_level': list(sorted(dist.top_level)),
                 'name': dist.key,
                 'version': dist.version
             }, sort_keys=True)
