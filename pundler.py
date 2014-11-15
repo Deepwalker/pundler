@@ -23,15 +23,7 @@ locate = default_locator.locate
 
 class CommandFailed(Exception):
     pass
-# import logging
-# import sys
-# root = logging.getLogger()
-# root.setLevel(logging.DEBUG)
-# ch = logging.StreamHandler(sys.stdout)
-# ch.setLevel(logging.DEBUG)
-# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# ch.setFormatter(formatter)
-# root.addHandler(ch)
+
 
 def group(itr, key):
     return dict((x, [i[1] for i in y]) for x, y in groupby(sorted(itr, key=key), key=key))
@@ -99,7 +91,8 @@ def parse_requirements(requirements):
                 dist = locate(req, prereleases=True)
                 if not dist:
                     raise Exception('Distribution for %s was not found' % req)
-            yield from inner_parse(dist.run_requires)
+            for sub_dist in inner_parse(dist.run_requires):
+                yield sub_dist
     reqs = [(name, ','.join(''.join(x) for vers in versions for x in vers)) 
         for name, versions in group(inner_parse(requirements), itemgetter(0)).items()]
     return [locate(' '.join(req), prereleases=True) for req in reqs]
@@ -112,7 +105,6 @@ def get_installed():
 def install(dist):
     name = dist.name
     tmpdir = tempfile.mkdtemp()
-    print(name)
     res = subprocess.call([sys.executable,
         '-m', 'pip', 'install',
         '--no-deps',
@@ -122,7 +114,6 @@ def install(dist):
     ])
     if res != 0:
         raise Exception('%s was not installed due error' % name)
-    print(tmpdir)
     dir_name = '{}-{}'.format(name.lower(), dist.version)
     target_dir = op.join('Pundledir', dir_name)
     try:
@@ -139,16 +130,21 @@ def install_requirements():
     installed = get_installed()
     if not op.isfile('requirements.txt'):
         raise Exception('File requirements.txt not found')
-    requirements = [line.strip() for line in open('requirements.txt').readlines() if line.strip() and not line.startswith('#')]
+    requirements = [line.strip() for line in open('requirements.txt').readlines()
+                    if line.strip() and not line.startswith('#')]
     dists = parse_requirements(requirements)
     for dist in dists:
         if not dist.version in installed.get(dist.name.lower(), []):
             install(dist)
         # provided top levels
-        top_level = glob.glob('Pundledir/{}-{}/*-info/top_level.txt'.format(dist.name.lower(), dist.version))
+        top_level = glob.glob(
+            'Pundledir/{}-{}/*-info/top_level.txt'.format(dist.name.lower(), dist.version)
+        )
         dist.top_level = set([dist.name.lower()])
         if top_level:
-            dist.top_level = dist.top_level.union(set([line.strip() for line in open(top_level[0]) if line.strip()]))
+            dist.top_level = dist.top_level.union(set([
+                line.strip() for line in open(top_level[0]) if line.strip()
+            ]))
 
     # Create freezed version
     with open('freezed.txt', 'w') as f:
@@ -158,18 +154,10 @@ def install_requirements():
                 'top_level': list(dist.top_level),
                 'name': dist.key,
                 'version': dist.version
-            })
+            }, sort_keys=True)
             f.write('{dist.key}=={dist.version} ### {meta}\n'.format(dist=dist, meta=meta))
         f.write('\n')
 
-
-def test():
-    install_finder()
-    import opster
-    import trafaret
-    from trafaret import extras
-    import jinja2 as j
-    print(repr(j))
 
 if __name__ == '__main__':
     install_requirements()
