@@ -28,7 +28,9 @@ TODO
 ----
 
 - add vcs support
+- Pundler folder locations?
 - tie packages to python version. Try to do this only where we need this (C extensions, py2 without __pycache__ support)
 - install by freezed.txt
 - on update rewrite freezed.txt
 - on launch check if freezed.txt is in touch with requirements.txt
+- package scripts

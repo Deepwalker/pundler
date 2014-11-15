@@ -11,8 +11,12 @@ import subprocess
 import tempfile
 import shutil
 from collections import defaultdict
-from dl import locators
-from dl.util import parse_requirement
+distlib = SourceFileLoader('distlib', op.join(op.dirname(__file__), 'distlib/distlib/__init__.py')).load_module()
+locators = SourceFileLoader('distlib.locators', op.join(op.dirname(__file__), 'distlib/distlib/locators.py')).load_module()
+# from distlib import locators
+distlib_utils = SourceFileLoader('distlib.util', op.join(op.dirname(__file__), 'distlib/distlib/util.py')).load_module()
+# from distlib.util import parse_requirement
+parse_requirement = distlib_utils.parse_requirement
 
 default_locator = locators.AggregatingLocator(
                     locators.JSONLocator(),
@@ -23,8 +27,57 @@ locate = default_locator.locate
 
 PYTHON_VERSION = '%s' % platform.python_implementation()
 
-class CommandFailed(Exception):
-    pass
+
+class DistProxy(object):
+    def __init__(self, dist):
+        self.dist = dist
+        self.toplevel = None
+
+    def name(self):
+        return self.dist.name
+
+    def lower_name(self):
+        return self.dist.name.lower()
+
+    def dir_name(self):
+        return '{}-{}'.format(self.lower_name(), self.dist.version)
+
+    def version(self):
+        return self.dist.version
+
+    @property
+    def freezed_str(self):
+        return '{lower_name}=={version}'.format(lower_name=self.lower_name(), version=self.version())
+
+    def top_level(self):
+        if self.toplevel != None:
+            return self.toplevel
+        self.toplevel = set([self.lower_name()])
+        top_level = glob.glob(
+            'Pundledir/{}/*-info/top_level.txt'.format(self.dir_name())
+        )
+        if top_level:
+            self.toplevel = self.toplevel.union(set([
+                line.strip() for line in open(top_level[0]) if line.strip()
+            ]))
+        return self.toplevel
+
+    def install(self):
+        target_dir = op.join('Pundledir', self.dir_name())
+        try:
+            makedirs(target_dir)
+        except FileExistsError:
+            pass
+        res = subprocess.call([sys.executable,
+            '-m', 'pip', 'install',
+            '--no-deps',
+            '--install-option=%s' % ('--install-scripts=%s' % op.join(target_dir, '.scripts')),
+            '-t', target_dir,
+            '%s==%s'%(self.name(), self.version())
+        ])
+        if res != 0:
+            raise Exception('%s was not installed due error' % self.name())
+
 
 
 def group(itr, key):
@@ -102,43 +155,24 @@ def parse_requirements():
                     if line.strip() and not line.startswith('#')]
     reqs = [(name, ','.join(''.join(x) for vers in versions for x in vers)) 
         for name, versions in group(inner_parse(requirements), itemgetter(0)).items()]
-    return [locate(' '.join(req), prereleases=True) for req in reqs]
+    return [DistProxy(locate(' '.join(req), prereleases=True)) for req in reqs]
 
 
 def get_installed():
     return group([item.split('-', 1) for item in listdir('Pundledir')], itemgetter(0))
 
 
-def install(dist):
-    name = dist.name
-    dir_name = '{}-{}'.format(name.lower(), dist.version)
-    target_dir = op.join('Pundledir', dir_name)
-    try:
-        makedirs(target_dir)
-    except FileExistsError:
-        pass
-    res = subprocess.call([sys.executable,
-        '-m', 'pip', 'install',
-        '--no-deps',
-        '--install-option=%s' % ('--install-scripts=%s' % op.join(target_dir, '.scripts')),
-        '-t', target_dir,
-        '%s==%s'%(name, dist.version)
-    ])
-    if res != 0:
-        raise Exception('%s was not installed due error' % name)
-
-
 def write_freezed(dists):
     # Create freezed version
     with open('freezed.txt', 'w') as f:
-        dists.sort(key=lambda d: d.name)
+        dists.sort(key=lambda d: d.name())
         for dist in dists:
             meta = json.dumps({
-                'top_level': list(sorted(dist.top_level)),
-                'name': dist.key,
-                'version': dist.version
+                'top_level': list(sorted(dist.top_level())),
+                'name': dist.lower_name(),
+                'version': dist.version()
             }, sort_keys=True)
-            f.write('{dist.key}=={dist.version} ### {meta}\n'.format(dist=dist, meta=meta))
+            f.write('{dist.freezed_str} ### {meta}\n'.format(dist=dist, meta=meta))
         f.write('\n')
 
 
@@ -147,17 +181,8 @@ def install_requirements():
     installed = get_installed()
     dists = parse_requirements()
     for dist in dists:
-        if not dist.version in installed.get(dist.name.lower(), []):
-            install(dist)
-        # provided top levels
-        top_level = glob.glob(
-            'Pundledir/{}-{}/*-info/top_level.txt'.format(dist.name.lower(), dist.version)
-        )
-        dist.top_level = set([dist.name.lower()])
-        if top_level:
-            dist.top_level = dist.top_level.union(set([
-                line.strip() for line in open(top_level[0]) if line.strip()
-            ]))
+        if not dist.version() in installed.get(dist.lower_name(), []):
+            dist.install()
     write_freezed(dists)
 
 
