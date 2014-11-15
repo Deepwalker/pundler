@@ -4,4 +4,8 @@ jinja2
 #git+https://github.com/Deepwalker/nomad.git#egg=nomad
 nomad
 configparser==3.5.0b2
+# test project that provides different top_level package name
 Pillow
+
+# test git project with requirements
+#git+git@github.com:mitsuhiko/flask.git

@@ -1,6 +1,7 @@
 import sys
 import os.path as op
 from os import makedirs, listdir
+import platform
 import glob
 import json
 from importlib.machinery import ModuleSpec, SourceFileLoader
@@ -20,6 +21,7 @@ default_locator = locators.AggregatingLocator(
                     scheme='legacy')
 locate = default_locator.locate
 
+PYTHON_VERSION = '%s' % platform.python_implementation()
 
 class CommandFailed(Exception):
     pass
@@ -53,7 +55,6 @@ class PundlerFinder(object):
                 if not op.exists(top_pundle['path']):
                     continue
                 self.pundles[top].append(top_pundle)
-        print(self.pundles)
 
     def find_spec(self, fullname, path, target_module):
         if path is not None:
@@ -72,6 +73,7 @@ class PundlerFinder(object):
             spec.submodule_search_locations = [pundle['path']]
         return spec
 
+
 def install_finder():
     sys.meta_path.insert(0, PundlerFinder('.'))
 
@@ -81,7 +83,7 @@ def require_pundledir():
     if not op.exists('Pundledir'):
         makedirs('Pundledir')
 
-def parse_requirements(requirements):
+def parse_requirements():
     def inner_parse(reqs):
         for req in reqs:
             parsed = parse_requirement(req)
@@ -93,6 +95,11 @@ def parse_requirements(requirements):
                     raise Exception('Distribution for %s was not found' % req)
             for sub_dist in inner_parse(dist.run_requires):
                 yield sub_dist
+
+    if not op.isfile('requirements.txt'):
+        raise Exception('File requirements.txt not found')
+    requirements = [line.strip() for line in open('requirements.txt').readlines()
+                    if line.strip() and not line.startswith('#')]
     reqs = [(name, ','.join(''.join(x) for vers in versions for x in vers)) 
         for name, versions in group(inner_parse(requirements), itemgetter(0)).items()]
     return [locate(' '.join(req), prereleases=True) for req in reqs]
@@ -104,35 +111,41 @@ def get_installed():
 
 def install(dist):
     name = dist.name
-    tmpdir = tempfile.mkdtemp()
-    res = subprocess.call([sys.executable,
-        '-m', 'pip', 'install',
-        '--no-deps',
-        '--install-option=%s' % ('--install-scripts=%s' % op.join(tmpdir, '.scripts')),
-        '-t', tmpdir,
-        '%s==%s'%(name, dist.version)
-    ])
-    if res != 0:
-        raise Exception('%s was not installed due error' % name)
     dir_name = '{}-{}'.format(name.lower(), dist.version)
     target_dir = op.join('Pundledir', dir_name)
     try:
         makedirs(target_dir)
     except FileExistsError:
         pass
-    for item in listdir(tmpdir):
-        shutil.move(op.join(tmpdir, item), op.join(target_dir, item))
-    shutil.rmtree(tmpdir)
+    res = subprocess.call([sys.executable,
+        '-m', 'pip', 'install',
+        '--no-deps',
+        '--install-option=%s' % ('--install-scripts=%s' % op.join(target_dir, '.scripts')),
+        '-t', target_dir,
+        '%s==%s'%(name, dist.version)
+    ])
+    if res != 0:
+        raise Exception('%s was not installed due error' % name)
+
+
+def write_freezed(dists):
+    # Create freezed version
+    with open('freezed.txt', 'w') as f:
+        dists.sort(key=lambda d: d.name)
+        for dist in dists:
+            meta = json.dumps({
+                'top_level': list(sorted(dist.top_level)),
+                'name': dist.key,
+                'version': dist.version
+            }, sort_keys=True)
+            f.write('{dist.key}=={dist.version} ### {meta}\n'.format(dist=dist, meta=meta))
+        f.write('\n')
 
 
 def install_requirements():
     require_pundledir()
     installed = get_installed()
-    if not op.isfile('requirements.txt'):
-        raise Exception('File requirements.txt not found')
-    requirements = [line.strip() for line in open('requirements.txt').readlines()
-                    if line.strip() and not line.startswith('#')]
-    dists = parse_requirements(requirements)
+    dists = parse_requirements()
     for dist in dists:
         if not dist.version in installed.get(dist.name.lower(), []):
             install(dist)
@@ -145,18 +158,7 @@ def install_requirements():
             dist.top_level = dist.top_level.union(set([
                 line.strip() for line in open(top_level[0]) if line.strip()
             ]))
-
-    # Create freezed version
-    with open('freezed.txt', 'w') as f:
-        dists.sort(key=lambda d: d.name)
-        for dist in dists:
-            meta = json.dumps({
-                'top_level': list(sorted(dist.top_level)),
-                'name': dist.key,
-                'version': dist.version
-            }, sort_keys=True)
-            f.write('{dist.key}=={dist.version} ### {meta}\n'.format(dist=dist, meta=meta))
-        f.write('\n')
+    write_freezed(dists)
 
 
 if __name__ == '__main__':
