@@ -119,7 +119,7 @@ class RequirementState(object):
         if install and not dist:
             dist = self.requirement.locate_and_install(suite)
             self.installed.append(dist)
-        if not self.has_correct_freeze():
+        if install and not self.has_correct_freeze():
             self.freezed = dist.version
         if not dist:
             raise Exception('Cannot install %r' % self.requirement)
@@ -166,7 +166,7 @@ class Suite(object):
         return [state for state in self.states.values() if state.requirement]
 
     def need_refreeze(self):
-        # self.refreeze(install=False)
+        self.refreeze(install=False)
         not_correct = not all(state.has_correct_freeze() for state in self.required_states())
         unneeded = any(state.freezed for state in self.states.values() if not state.requirement)
         return not_correct or unneeded
@@ -261,9 +261,5 @@ def check_if_freezed_installed():
 if __name__ == '__main__':
     freeze_them_all()
     check_if_freezed_installed()
-
-    suite = Parser().create_suite()
-    suite.refreeze()
-    print(suite.dump_freezed())
 
 
