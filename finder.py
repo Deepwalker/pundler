@@ -5,6 +5,7 @@ class PundlerFinder(object):
     def __init__(self, basepath):
         self.basepath = basepath
         self.pundles = defaultdict(list)
+        # TODO remove all this shit and use parser
         for line in open('freezed.txt').readlines():
             if not line.strip():
                 continue

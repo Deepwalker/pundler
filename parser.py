@@ -1,9 +1,22 @@
+from urllib.parse import urlparse
+from collections import defaultdict
 import os.path as op
 import os
+from os import makedirs
+import subprocess
+import sys
 import functools
 import shlex
 import pkg_resources
 cache_it = functools.lru_cache(None)
+
+### Dark zone
+from importlib.machinery import SourceFileLoader
+
+distlib = SourceFileLoader('distlib', op.join(op.dirname(__file__), 'distlib/distlib/__init__.py')).load_module()
+locators = SourceFileLoader('distlib.locators', op.join(op.dirname(__file__), 'distlib/distlib/locators.py')).load_module()
+locate = locators.locate
+###########
 
 
 def parse_file(filename):
@@ -17,28 +30,131 @@ def parse_file(filename):
 def test_vcs(req):
     return '+' in req and req.index('+') == 3
 
-class FileSource(object):
-    def __init__(self, filename):
-        self.filename = filename
-
-    def __repr__(self):
-        return '<FileSource %r>' % self.filename
 
 class CustomReq(object):
     def __init__(self, line, source=None):
         self.line = line
-        self.req = pkg_resources.Requirement.parse(line)
+        if isinstance(line, pkg_resources.Requirement):
+            self.req = line
+        elif not test_vcs(line):
+            self.req = pkg_resources.Requirement.parse(line)
+        else:
+            parsed_url = urlparse(line)
+            if not (parsed_url.fragment and parsed_url.fragment.startswith('egg=')):
+                raise Exception('Bad url %r' % line)
+            self.egg = parsed_url.fragment.split('=', 1)[1]
+            self.req = None
         self.source = source
 
     def __contains__(self, something):
-        return something in self.req
+        return (something in self.req) if self.req else False
 
     def __repr__(self):
         return '<CustomReq %r>' % self.__dict__
 
+    def adjust_with_req(self, req):
+        if not self.req:
+            raise Exception('VCS')
+        versions = ','.join(''.join(t) for t in set(self.req.specs + req.req.specs))
+        self.requirement = pkg_resources.Requirement.parse('{} {}'.format(
+            self.req.project_name, versions
+        ))
     @property
     def key(self):
-        return self.req.key
+        return self.req.key if self.req else self.egg
+
+    def locate_and_install(self, suite):
+        loc_dist = locate(str(self.req))
+        target_dir = op.join(suite.parser.directory, '{}-{}'.format(self.req.key, loc_dist.version))
+        try:
+            makedirs(target_dir)
+        except FileExistsError:
+            pass
+        res = subprocess.call([sys.executable,
+            '-m', 'pip', 'install',
+            '--no-deps',
+            '--install-option=%s' % ('--install-scripts=%s' % op.join(target_dir, '.scripts')),
+            '-t', target_dir,
+            '%s==%s'%(loc_dist.name, loc_dist.version)
+        ])
+        if res != 0:
+            raise Exception('%s was not installed due error' % loc_dist.name)
+        return next(iter(pkg_resources.find_distributions(target_dir, True)), None)
+
+
+class RequirementState(object):
+    def __init__(self, key, req=None, freezed=None, installed=None):
+        self.key = key
+        self.requirement = req
+        self.freezed = freezed
+        self.installed = installed or []
+
+    def __repr__(self):
+        return '<RequirementState %r>' % self.__dict__
+
+    def adjust_with_req(self, req):
+        if self.requirement:
+            self.requirement.adjust_with_req(req)
+        else:
+            self.requirement = req
+
+    def has_correct_freeze(self):
+        # print(self.key, self.requirement and self.freezed and self.freezed in self.requirement)
+        return self.requirement and self.freezed and self.freezed in self.requirement
+
+    def check_installed_version(self, suite):
+        # install version of package if not installed
+        dist = next(
+            (installation for installation in self.installed if installation.version in self.requirement),
+            None
+        )
+        if not dist:
+            dist = self.requirement.locate_and_install(suite)
+            self.installed.append(dist)
+        if not self.has_correct_freeze():
+            self.freezed = dist.version
+        if not dist:
+            raise Exception('Cannot install %r' % self.requirement)
+        return dist
+
+    def reveal_requirements(self, suite):
+        dist = self.check_installed_version(suite)
+        if not dist:
+            return
+        for req in dist.requires():
+            suite.adjust_with_req(CustomReq(str(req), source=self))
+
+
+class Suite(object):
+    def __init__(self, parser):
+        self.states = {}
+        self.parser = parser
+
+    def add(self, key, state):
+        self.states[key] = state
+
+    def __repr__(self):
+        return '<Suite %r>' % self.states
+
+    def not_required_states(self):
+        return [state for state in self.states.values() if state.requirement]
+
+    def need_refreeze(self):
+        return not all(state.has_correct_freeze() for state in self.not_required_states())
+
+    def adjust_with_req(self, req):
+        state = self.states.get(req.key)
+        if not state:
+            state = RequirementState(req.key, req=req)
+            self.add(req.key, state)
+        else:
+            state.adjust_with_req(req)
+        state.reveal_requirements(self)
+
+    def refreeze(self):
+        for state in self.not_required_states():
+            state.reveal_requirements(suite)
+
 
 
 class Parser(object):
@@ -47,57 +163,42 @@ class Parser(object):
         self.requirements_file = requirements_file
         self.freezed_file = freezed_file
 
+    def create_suite(self):
+        reqs, freezy, diry = self.parse_requirements(), self.parse_freezed(), self.parse_directory()
+        state_keys = set(list(reqs.keys()) + list(freezy.keys()) + list(diry.keys()))
+        suite = Suite(self)
+        for key in state_keys:
+            suite.add(key,
+                RequirementState(key, reqs.get(key), freezy.get(key), diry.get(key, []))
+            )
+        return suite
+
     def parse_directory(self):
-        dir_items = [item.split('-', 1) for item in os.listdir(self.directory) if '-' in item]
-        return dict((name.lower(), version) for name, version in dir_items)
+        dists = [next(iter(
+                pkg_resources.find_distributions(op.join(self.directory, item), True)
+            ), None) for item in os.listdir(self.directory) if '-' in item]
+        dists = filter(None, dists)
+        result = defaultdict(list)
+        for dist in dists:
+            result[dist.key].append(dist)
+        return result
 
     def parse_freezed(self):
         freezed = [line.split('==') for line in parse_file(self.freezed_file)] if op.exists(self.freezed_file) else []
         freezed_versions = dict((name.lower(), version) for name, version in freezed)
         return freezed_versions
 
-    def correct_freezed(self):
-        _, fit = self.get_not_installed(self.parse_requirements(), self.parse_freezed())
-        return fit
-
-    def freezed_for_check(self):
-        return self.parse_file_requirements(self.freezed_file)
-
     def parse_requirements(self):
-        return self.parse_file_requirements(self.requirements_file)
+        requirements = parse_file(self.requirements_file) if op.exists(self.requirements_file) else []
+        return dict((req.key, req) for req in (CustomReq(line, self.requirements_file) for line in requirements))
 
-    @cache_it
-    def parse_file_requirements(self, filename):
-        requirements = parse_file(filename) if op.exists(filename) else []
-        result = []
-        for req in requirements:
-            if test_vcs(req):
-                print('Dont know how to work with vcs urls %r in `%s`' % (req, filename))
-                continue
-            result.append(CustomReq(req, source=FileSource(filename)))
-        return result
-
-    def get_not_installed(self, requirements, freezed_versions):
-        nonfit = []
-        fit = []
-        for requirement in requirements:
-            installed = freezed_versions.get(requirement.key)
-            if not (installed and installed in requirement):
-                nonfit.append(requirement)
-            else:
-                fit.append(requirement)
-        return (nonfit, fit)
-
-    def get_unresolved_requirements(self):
-        are_freezed_correct, _ = self.get_not_installed(self.parse_requirements(), self.parse_freezed())
-        are_freezed_installed, _ = self.get_not_installed(self.freezed_for_check(), self.parse_directory())
-        return (are_freezed_correct, are_freezed_installed)
 
 
 if __name__ == '__main__':
-    parser = Parser()
-    # Check if freezed fit with requirements
-    are_freezed_correct, freezed_installed = parser.get_unresolved_requirements()
-    print('Not freezed requirements', are_freezed_correct)
-    # Check if freezed packages is installed
-    print('Not installed freezed', freezed_installed)
+    suite = Parser().create_suite()
+    print()
+    print('Freezed are incorrect', suite.need_refreeze())
+    suite.refreeze()
+    print('Freezed are incorrect', suite.need_refreeze())
+
+

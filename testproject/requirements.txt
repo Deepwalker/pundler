@@ -7,4 +7,5 @@ configparser==3.5.0b2
 Pillow
 
 # test git project with requirements
-git+git@github.com:mitsuhiko/flask.git#egg=flask
+#git+git@github.com:mitsuhiko/flask.git#egg=flask
+Flask
