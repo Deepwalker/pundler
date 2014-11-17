@@ -1,2 +1,0 @@
-PYTHONPATH=.. python test.py
-

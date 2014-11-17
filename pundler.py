@@ -1,3 +1,4 @@
+from __future__ import print_function, unicode_literals
 from urllib.parse import urlparse
 from collections import defaultdict
 import os.path as op
@@ -5,10 +6,8 @@ import os
 from os import makedirs
 import subprocess
 import sys
-import functools
 import shlex
 import pkg_resources
-cache_it = functools.lru_cache(None)
 
 ### Dark zone
 from importlib.machinery import SourceFileLoader
@@ -252,23 +251,39 @@ def freeze_them_all():
         with open(suite.parser.freezed_file, 'w') as f:
             f.write(suite.dump_freezed())
         print(suite.dump_freezed())
-        # TODO do we need to check all dependencies from freezed?
-        # Or if our freezed version is up to date with requirements
-        # we suppose that dependecies are ok?
     else:
         print('All up to date')
 
 
 def check_if_freezed_installed():
     suite = Parser().create_suite()
+    if suite.need_refreeze():
+        print('Freezed version is outdated')
+        sys.exit(1)
     if suite.need_install():
-        print('Alarma!')
-    suite.install_freezed()
-
+        print('Install some packages')
+        suite.install_freezed()
+    else:
+        print('Nothing to do, all packages installed')
 
 
 if __name__ == '__main__':
-    freeze_them_all()
-    check_if_freezed_installed()
-
+    if len(sys.argv) == 1 or sys.argv[1] == 'install':
+        check_if_freezed_installed()
+    elif sys.argv[1] == 'upgrade':
+        freeze_them_all()
+    elif sys.argv[1] == 'fixate':
+        print('Fixate')
+        import site
+        userdir = site.getusersitepackages()
+        if not userdir:
+            raise Exception('Can`t fixate due user have not site package directory')
+        try:
+            makedirs(userdir)
+        except FileExistsError:
+            pass
+        template = open(op.join(op.dirname(__file__), 'usercustomize.py')).read()
+        template = template.replace('op.dirname(__file__)', "'%s'" % op.abspath(op.dirname(__file__)))
+        open(op.join(userdir, 'usercustomize.py'), 'w').write(template)
+        print('Complete')
 

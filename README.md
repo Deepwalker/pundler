@@ -8,6 +8,14 @@ Git, svn and so on support planned to support a bit later.
 
 Now this is expirement.
 
+Commands
+--------
+
+`pundler [install]` will install files from freezed.txt file.
+
+`pundler upgrade` will recreate freezed.txt from requirements.txt (Now conservative. TODO make real upgrade)
+
+`pundler fixate` installs site costumization for current python
 
 
 How to play with it
