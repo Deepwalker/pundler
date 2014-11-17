@@ -17,11 +17,17 @@ How to play with it
     cd pundler
     git submodules init
 
-    cd <project directory>
-    create requirements.txt
-    python3.4 <path to pundler>/pundler.py
+    cd testproject
+    python3.4 ../parse.py
 
 Pundler will create directory `Pundledir` and file `freezed.txt`.
+
+
+DONE
+----
+- install by freezed.txt
+- on update rewrite freezed.txt
+- on launch check if freezed.txt is in touch with requirements.txt
 
 
 TODO
@@ -30,7 +36,4 @@ TODO
 - add vcs support
 - Pundler folder locations?
 - tie packages to python version. Try to do this only where we need this (C extensions, py2 without __pycache__ support)
-- install by freezed.txt
-- on update rewrite freezed.txt
-- on launch check if freezed.txt is in touch with requirements.txt
 - package scripts

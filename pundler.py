@@ -121,8 +121,8 @@ class RequirementState(object):
             self.installed.append(dist)
         if install and not self.has_correct_freeze():
             self.freezed = dist.version
-        if not dist:
-            raise Exception('Cannot install %r' % self.requirement)
+        # if not dist:
+            # raise Exception('Cannot install %r' % self.requirement)
         return dist
 
     def reveal_requirements(self, suite, install=False):
@@ -139,7 +139,7 @@ class RequirementState(object):
 
     def freezed_dist(self):
         return next(
-            ((self.key if dist.version == self.freezed else None) for dist in self.installed),
+            ((dist if dist.version == self.freezed else None) for dist in self.installed),
             None
         )
 
@@ -149,6 +149,9 @@ class RequirementState(object):
         freezed_req = CustomReq("{}=={}".format(self.key, self.freezed))
         dist = freezed_req.locate_and_install(suite)
         self.installed.append(dist)
+
+    def activate(self):
+        self.freezed_dist().activate()
 
 
 class Suite(object):
@@ -196,6 +199,10 @@ class Suite(object):
         for state in self.states.values():
             state.install_freezed(self)
 
+    def activate_all(self):
+        for state in self.required_states():
+            state.activate()
+
 
 
 class Parser(object):
@@ -215,6 +222,8 @@ class Parser(object):
         return suite
 
     def parse_directory(self):
+        if not op.exists(self.directory):
+            return {}
         dists = [next(iter(
                 pkg_resources.find_distributions(op.join(self.directory, item), True)
             ), None) for item in os.listdir(self.directory) if '-' in item]
