@@ -52,6 +52,13 @@ class CustomReq(object):
     def __repr__(self):
         return '<CustomReq %r>' % self.__dict__
 
+    def why_str(self):
+        if isinstance(self.source, str):
+            return '{} from {}'.format(self.line, self.source)
+        if isinstance(self.source, CustomReq):
+            return '{} from `{}`'.format(self.line, self.source.why_str())
+        return '?'
+
     def adjust_with_req(self, req):
         if not self.req:
             raise Exception('VCS')
@@ -65,7 +72,8 @@ class CustomReq(object):
 
     def locate_and_install(self, suite):
         loc_dist = locate(str(self.req))
-        target_dir = op.join(suite.parser.directory, '{}-{}'.format(self.req.key, loc_dist.version))
+        print(loc_dist, self.req)
+        target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
         try:
             makedirs(target_dir)
         except FileExistsError:
@@ -102,13 +110,13 @@ class RequirementState(object):
         # print(self.key, self.requirement and self.freezed and self.freezed in self.requirement)
         return self.requirement and self.freezed and self.freezed in self.requirement
 
-    def check_installed_version(self, suite):
+    def check_installed_version(self, suite, install=False):
         # install version of package if not installed
         dist = next(
             (installation for installation in self.installed if installation.version in self.requirement),
             None
         )
-        if not dist:
+        if install and not dist:
             dist = self.requirement.locate_and_install(suite)
             self.installed.append(dist)
         if not self.has_correct_freeze():
@@ -117,12 +125,30 @@ class RequirementState(object):
             raise Exception('Cannot install %r' % self.requirement)
         return dist
 
-    def reveal_requirements(self, suite):
-        dist = self.check_installed_version(suite)
+    def reveal_requirements(self, suite, install=False):
+        dist = self.check_installed_version(suite, install=install)
         if not dist:
             return
         for req in dist.requires():
-            suite.adjust_with_req(CustomReq(str(req), source=self))
+            suite.adjust_with_req(CustomReq(str(req), source=self.requirement), install=install)
+
+    def freezed_dump(self):
+        main = '{}=={}'.format(self.key, self.freezed)
+        comment = self.requirement.why_str()
+        return '{:20s} # {}'.format(main, comment)
+
+    def freezed_dist(self):
+        return next(
+            ((self.key if dist.version == self.freezed else None) for dist in self.installed),
+            None
+        )
+
+    def install_freezed(self, suite):
+        if self.freezed_dist() or not self.freezed:
+            return
+        freezed_req = CustomReq("{}=={}".format(self.key, self.freezed))
+        dist = freezed_req.locate_and_install(suite)
+        self.installed.append(dist)
 
 
 class Suite(object):
@@ -136,24 +162,39 @@ class Suite(object):
     def __repr__(self):
         return '<Suite %r>' % self.states
 
-    def not_required_states(self):
+    def required_states(self):
         return [state for state in self.states.values() if state.requirement]
 
     def need_refreeze(self):
-        return not all(state.has_correct_freeze() for state in self.not_required_states())
+        # self.refreeze(install=False)
+        not_correct = not all(state.has_correct_freeze() for state in self.required_states())
+        unneeded = any(state.freezed for state in self.states.values() if not state.requirement)
+        return not_correct or unneeded
 
-    def adjust_with_req(self, req):
+    def adjust_with_req(self, req, install=False):
         state = self.states.get(req.key)
         if not state:
             state = RequirementState(req.key, req=req)
             self.add(req.key, state)
         else:
             state.adjust_with_req(req)
-        state.reveal_requirements(self)
+        state.reveal_requirements(self, install=install)
 
-    def refreeze(self):
-        for state in self.not_required_states():
-            state.reveal_requirements(suite)
+    def refreeze(self, install=True):
+        for state in self.required_states():
+            state.reveal_requirements(self, install=install)
+
+    def dump_freezed(self):
+        return '\n'.join(sorted(
+            state.freezed_dump() for state in self.required_states() if state.requirement
+        )) + '\n'
+
+    def need_install(self):
+        return not all(state.freezed_dist() for state in self.states.values() if state.freezed)
+
+    def install_freezed(self):
+        for state in self.states.values():
+            state.install_freezed(self)
 
 
 
@@ -193,12 +234,36 @@ class Parser(object):
         return dict((req.key, req) for req in (CustomReq(line, self.requirements_file) for line in requirements))
 
 
+# Commands
+def freeze_them_all():
+    suite = Parser().create_suite()
+    if suite.need_refreeze():
+        print('Freezed version is outdated')
+        suite.refreeze()
+        with open(suite.parser.freezed_file, 'w') as f:
+            f.write(suite.dump_freezed())
+        print(suite.dump_freezed())
+        # TODO do we need to check all dependencies from freezed?
+        # Or if our freezed version is up to date with requirements
+        # we suppose that dependecies are ok?
+    else:
+        print('All up to date')
+
+
+def check_if_freezed_installed():
+    suite = Parser().create_suite()
+    if suite.need_install():
+        print('Alarma!')
+    suite.install_freezed()
+
+
 
 if __name__ == '__main__':
+    freeze_them_all()
+    check_if_freezed_installed()
+
     suite = Parser().create_suite()
-    print()
-    print('Freezed are incorrect', suite.need_refreeze())
     suite.refreeze()
-    print('Freezed are incorrect', suite.need_refreeze())
+    print(suite.dump_freezed())
 
 

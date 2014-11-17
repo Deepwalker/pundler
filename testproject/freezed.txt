@@ -1,10 +1,12 @@
-django==1.7.1                  ### {"name": "django", "path": "django-1.7.1", "top_level": ["django"], "version": "1.7.1"}
-jinja2==2.7.3                  ### {"name": "jinja2", "path": "jinja2-2.7.3", "top_level": ["jinja2"], "version": "2.7.3"}
-markupsafe==0.23               ### {"name": "markupsafe", "path": "markupsafe-0.23", "top_level": ["markupsafe"], "version": "0.23"}
-pillow==2.6.1                  ### {"name": "pillow", "path": "pillow-2.6.1", "top_level": ["PIL", "pillow"], "version": "2.6.1"}
-configparser==3.5.0b2          ### {"name": "configparser", "path": "configparser-3.5.0b2", "top_level": ["backports", "configparser"], "version": "3.5.0b2"}
-nomad==1.9                     ### {"name": "nomad", "path": "nomad-1.9", "top_level": ["nomad"], "version": "1.9"}
-opster==4.1                    ### {"name": "opster", "path": "opster-4.1", "top_level": ["opster"], "version": "4.1"}
-termcolor==1.1.0               ### {"name": "termcolor", "path": "termcolor-1.1.0", "top_level": ["termcolor"], "version": "1.1.0"}
-trafaret==0.5.2                ### {"name": "trafaret", "path": "trafaret-0.5.3", "top_level": ["trafaret"], "version": "0.5.3"}
-
+configparser==3.5.0b2 # configparser==3.5.0b2 from requirements.txt
+django==1.7.1        # Django==1.7.1 from requirements.txt
+flask==0.10.1        # Flask from requirements.txt
+itsdangerous==0.24   # itsdangerous>=0.21 from `Flask from requirements.txt`
+jinja2==2.7.3        # jinja2 from requirements.txt
+markupsafe==0.23     # markupsafe from `jinja2 from requirements.txt`
+nomad==1.9           # nomad from requirements.txt
+opster==4.1          # opster>=4.0 from `nomad from requirements.txt`
+pillow==2.6.1        # Pillow from requirements.txt
+termcolor==1.1.0     # termcolor from `nomad from requirements.txt`
+trafaret==0.5.3      # trafaret>0.5.2 from requirements.txt
+werkzeug==0.9.6      # Werkzeug>=0.7 from `Flask from requirements.txt`
