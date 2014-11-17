@@ -11,6 +11,8 @@ import subprocess
 import tempfile
 import shutil
 from collections import defaultdict
+from pip.vcs import VcsSupport
+
 distlib = SourceFileLoader('distlib', op.join(op.dirname(__file__), 'distlib/distlib/__init__.py')).load_module()
 locators = SourceFileLoader('distlib.locators', op.join(op.dirname(__file__), 'distlib/distlib/locators.py')).load_module()
 # from distlib import locators
@@ -44,6 +46,12 @@ class DistProxy(object):
 
     def version(self):
         return self.dist.version
+
+    def path(self):
+        return self.dir_name()
+
+    def run_requires(self):
+        return self.dist.run_requires
 
     @property
     def freezed_str(self):
@@ -79,57 +87,25 @@ class DistProxy(object):
             raise Exception('%s was not installed due error' % self.name())
 
 
+vcs_support = VcsSupport()
+class VcsProxy(object):
+    @classmethod
+    def is_vcs(cls, req):
+        if not '+' in req:
+            return False
+        schema, url = req.split('+', 1)
+        if schema in vcs_support.schemes:
+            return True
+
+    def __init__(self, src):
+        self.schema, self.url = src.split('+', 1)
+        # self.backend = vcs_support.get_backend(self.schema)(src)
+        # self.tmpdir = tmpfile.tmpdir
+        # self.backend.obtain(self.tmpdir)
+
 
 def group(itr, key):
     return dict((x, [i[1] for i in y]) for x, y in groupby(sorted(itr, key=key), key=key))
-
-
-class PundlerFinder(object):
-    def __init__(self, basepath):
-        self.basepath = basepath
-        self.pundles = defaultdict(list)
-        for line in open('freezed.txt').readlines():
-            if not line.strip():
-                continue
-            if '###' in line:
-                pundle = json.loads(line.split('###')[1].strip())
-            else:
-                pundle = dict(zip(
-                    ['name', 'version'],
-                    [item.strip() for item in line.split('==')]
-                ))
-                pundle['top_level'] = [pundle['name']]
-            base_dir = op.join('Pundledir', '{name}-{version}'.format(**pundle))
-            for top in pundle['top_level']:
-                top_pundle = pundle.copy()
-                top_pundle['path'] = op.join('Pundledir', '{name}-{version}'.format(**pundle), top)
-                if not op.exists(top_pundle['path']):
-                    top_pundle['path'] = op.join('Pundledir', '{name}-{version}'.format(**pundle), top + '.py')
-                if not op.exists(top_pundle['path']):
-                    continue
-                self.pundles[top].append(top_pundle)
-
-    def find_spec(self, fullname, path, target_module):
-        if path is not None:
-            return None
-        if fullname not in self.pundles:
-            return None
-        pundle = self.pundles[fullname][0]
-        if pundle['path'].endswith('.py'):
-            path = pundle['path']
-            is_package = False
-        else:
-            path = op.join(pundle['path'], '__init__.py')
-            is_package = True
-        spec = ModuleSpec(fullname, SourceFileLoader(fullname, path), origin=path, is_package=is_package)
-        if is_package:
-            spec.submodule_search_locations = [pundle['path']]
-        return spec
-
-
-def install_finder():
-    sys.meta_path.insert(0, PundlerFinder('.'))
-
 
 
 def require_pundledir():
@@ -139,14 +115,18 @@ def require_pundledir():
 def parse_requirements():
     def inner_parse(reqs):
         for req in reqs:
-            parsed = parse_requirement(req)
-            yield (parsed.name.lower(), parsed.constraints or [])
-            dist = locate(req)
-            if not dist:
-                dist = locate(req, prereleases=True)
+            if VcsProxy.is_vcs(req):
+                dist = VcsProxy(req)
+            else:
+                parsed = parse_requirement(req)
+                yield (parsed.name.lower(), parsed.constraints or [])
+                dist = locate(req)
                 if not dist:
-                    raise Exception('Distribution for %s was not found' % req)
-            for sub_dist in inner_parse(dist.run_requires):
+                    dist = locate(req, prereleases=True)
+                    if not dist:
+                        raise Exception('Distribution for %s was not found' % req)
+                dist = DistProxy(dist)
+            for sub_dist in inner_parse(dist.run_requires()):
                 yield sub_dist
 
     if not op.isfile('requirements.txt'):
@@ -170,9 +150,10 @@ def write_freezed(dists):
             meta = json.dumps({
                 'top_level': list(sorted(dist.top_level())),
                 'name': dist.lower_name(),
-                'version': dist.version()
+                'version': dist.version(),
+                'path': dist.path()
             }, sort_keys=True)
-            f.write('{dist.freezed_str} ### {meta}\n'.format(dist=dist, meta=meta))
+            f.write('{dist.freezed_str:30s} ### {meta}\n'.format(dist=dist, meta=meta))
         f.write('\n')
 
 
