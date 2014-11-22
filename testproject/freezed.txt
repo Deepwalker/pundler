@@ -1,4 +1,3 @@
-configparser==3.5.0b2 # configparser==3.5.0b2 from requirements.txt
 django==1.7.1        # Django==1.7.1 from requirements.txt
 flask==0.10.1        # Flask from requirements.txt
 itsdangerous==0.24   # itsdangerous>=0.21 from `Flask from requirements.txt`

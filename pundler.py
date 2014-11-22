@@ -1,9 +1,12 @@
 from __future__ import print_function, unicode_literals
+import re
 from urllib.parse import urlparse
 from collections import defaultdict
 import os.path as op
 import os
 from os import makedirs
+import tempfile
+import shutil
 import subprocess
 import sys
 import shlex
@@ -71,19 +74,26 @@ class CustomReq(object):
 
     def locate_and_install(self, suite):
         loc_dist = locate(str(self.req))
-        print(loc_dist, self.req)
+        if not loc_dist:
+            log_dist = locate(str(self.req), prereleases=True)
         target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
         try:
             makedirs(target_dir)
         except FileExistsError:
             pass
-        res = subprocess.call([sys.executable,
-            '-m', 'pip', 'install',
-            '--no-deps',
-            '--install-option=%s' % ('--install-scripts=%s' % op.join(target_dir, '.scripts')),
-            '-t', target_dir,
-            '%s==%s'%(loc_dist.name, loc_dist.version)
-        ])
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            res = subprocess.call([sys.executable,
+                '-m', 'pip', 'install',
+                '--no-deps',
+                '--install-option=%s' % ('--install-scripts=%s' % op.join(tmp_dir, '.scripts')),
+                '-t', tmp_dir,
+                '%s==%s'%(loc_dist.name, loc_dist.version)
+            ])
+            for item in os.listdir(tmp_dir):
+                shutil.move(op.join(tmp_dir, item), op.join(target_dir, item))
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
         if res != 0:
             raise Exception('%s was not installed due error' % loc_dist.name)
         return next(iter(pkg_resources.find_distributions(target_dir, True)), None)
@@ -170,8 +180,8 @@ class Suite(object):
     def need_refreeze(self):
         self.refreeze(install=False)
         not_correct = not all(state.has_correct_freeze() for state in self.required_states())
-        unneeded = any(state.freezed for state in self.states.values() if not state.requirement)
-        return not_correct or unneeded
+        # unneeded = any(state.freezed for state in self.states.values() if not state.requirement)
+        return not_correct #or unneeded TODO
 
     def adjust_with_req(self, req, install=False):
         state = self.states.get(req.key)
@@ -243,8 +253,8 @@ class Parser(object):
 
 
 # Commands
-def freeze_them_all():
-    suite = Parser().create_suite()
+def freeze_them_all(*a, **kw):
+    suite = Parser(*a, **kw).create_suite()
     if suite.need_refreeze():
         print('Freezed version is outdated')
         suite.refreeze()
@@ -255,8 +265,8 @@ def freeze_them_all():
         print('All up to date')
 
 
-def check_if_freezed_installed():
-    suite = Parser().create_suite()
+def check_if_freezed_installed(*a, **kw):
+    suite = Parser(*a, **kw).create_suite()
     if suite.need_refreeze():
         print('Freezed version is outdated')
         sys.exit(1)
@@ -267,11 +277,39 @@ def check_if_freezed_installed():
         print('Nothing to do, all packages installed')
 
 
+def search_files_upward(start_path=None):
+    "Search for requirements.txt upward"
+    if not start_path:
+        start_path = op.abspath(op.curdir)
+    if op.exists(op.join(start_path, 'requirements.txt')):
+        return start_path
+    up_path = op.abspath(op.join(start_path, '..'))
+    if op.samefile(start_path, up_path):
+        return None
+    return search_files_upward(start_path=up_path)
+
+
+def create_parser_parameters():
+    base_path = search_files_upward()
+    # print(base_path)
+    if not base_path:
+        return None
+    return {
+        'requirements_file': op.join(base_path, 'requirements.txt'),
+        'freezed_file': op.join(base_path, 'freezed.txt'),
+        'directory': op.join(op.expanduser('~'), '.pundledir')
+    }
+
+
 if __name__ == '__main__':
+    # I think better have pundledir in special home user directory
+    parser_kw = create_parser_parameters()
     if len(sys.argv) == 1 or sys.argv[1] == 'install':
-        check_if_freezed_installed()
+        check_if_freezed_installed(**parser_kw)
+
     elif sys.argv[1] == 'upgrade':
-        freeze_them_all()
+        freeze_them_all(**parser_kw)
+
     elif sys.argv[1] == 'fixate':
         print('Fixate')
         import site
@@ -284,6 +322,20 @@ if __name__ == '__main__':
             pass
         template = open(op.join(op.dirname(__file__), 'usercustomize.py')).read()
         template = template.replace('op.dirname(__file__)', "'%s'" % op.abspath(op.dirname(__file__)))
-        open(op.join(userdir, 'usercustomize.py'), 'w').write(template)
+        usercustomize_file = op.join(userdir, 'usercustomize.py')
+        print('Will edit %s file' % usercustomize_file)
+        if op.exists(usercustomize_file):
+            content = open(usercustomize_file).read()
+            if '# pundler user costumization start' in content:
+                regex = re.compile(r'\n# pundler user costumization start.*# pundler user costumization end\n', re.DOTALL)
+                content, res = regex.subn(template, content)
+                open(usercustomize_file, 'w').write(content)
+            else:
+                open(usercustomize_file, 'a').write(content)
+        else:
+            open(usercustomize_file, 'w').write(template)
         print('Complete')
 
+    elif sys.argv[1] == 'exec':
+        # d.get_entry_info('console_scripts', 'nomad').load(require=False)
+        pass
