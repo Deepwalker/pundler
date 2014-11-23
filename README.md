@@ -22,11 +22,10 @@ How to play with it
 -------------------
 
     git clone git@github.com:Deepwalker/pundler.git
-    cd pundler
-    git submodules init
+    python pundler/pundler.py fixate
 
     cd testproject
-    python3.4 ../parse.py
+    python -m pundler upgrade
 
 Pundler will create directory `Pundledir` and file `freezed.txt`.
 
@@ -43,7 +42,6 @@ DONE
 TODO
 ----
 - upgrade must lookup PyPI for new version
-- Pundler folder locations?
 - add vcs support
 - package scripts
 - tie packages to python version. Do this only where we need this (C extensions, py2 without __pycache__ support)
