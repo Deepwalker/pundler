@@ -315,18 +315,20 @@ def create_parser_parameters():
     }
 
 
-if __name__ == '__main__':
-    # I think better have pundledir in special home user directory
+def create_parser_or_exit():
     parser_kw = create_parser_parameters()
     if not parser_kw:
         print('You have not requirements.txt. Create it and run again.')
         exit(1)
+    return parser_kw
 
+if __name__ == '__main__':
+    # I think better have pundledir in special home user directory
     if len(sys.argv) == 1 or sys.argv[1] == 'install':
-        check_if_freezed_installed(**parser_kw)
+        check_if_freezed_installed(**create_parser_or_exit())
 
     elif sys.argv[1] == 'upgrade':
-        freeze_them_all(**parser_kw)
+        freeze_them_all(**create_parser_or_exit())
 
     elif sys.argv[1] == 'fixate':
         print('Fixate')
@@ -336,7 +338,7 @@ if __name__ == '__main__':
             raise Exception('Can`t fixate due user have not site package directory')
         try:
             makedirs(userdir)
-        except FileExistsError:
+        except OSError:
             pass
         template = open(op.join(op.dirname(__file__), 'usercustomize.py')).read()
         template = template.replace('op.dirname(__file__)', "'%s'" % op.abspath(op.dirname(__file__)))
@@ -352,6 +354,12 @@ if __name__ == '__main__':
                 open(usercustomize_file, 'a').write(content)
         else:
             open(usercustomize_file, 'w').write(template)
+        link_file = op.join(userdir, 'pundler.py')
+        if op.lexists(link_file):
+            print('Remove exist link to pundler')
+            os.unlink(link_file)
+        print('Create link to pundler %s' % link_file)
+        os.symlink(op.abspath(__file__), link_file)
         print('Complete')
 
     elif sys.argv[1] == 'exec':
