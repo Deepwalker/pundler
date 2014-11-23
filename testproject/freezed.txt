@@ -1,11 +1,12 @@
-django==1.7.1        # Django==1.7.1 from requirements.txt
-flask==0.10.1        # Flask from requirements.txt
-itsdangerous==0.24   # itsdangerous>=0.21 from `Flask from requirements.txt`
-jinja2==2.7.3        # jinja2 from requirements.txt
-markupsafe==0.23     # markupsafe from `jinja2 from requirements.txt`
-nomad==1.9           # nomad from requirements.txt
-opster==4.1          # opster>=4.0 from `nomad from requirements.txt`
-pillow==2.6.1        # Pillow from requirements.txt
-termcolor==1.1.0     # termcolor from `nomad from requirements.txt`
-trafaret==0.5.3      # trafaret>0.5.2 from requirements.txt
-werkzeug==0.9.6      # Werkzeug>=0.7 from `Flask from requirements.txt`
+configparser==3.5.0b2 # configparser==3.5.0b2 from requirements file
+django==1.7.1        # Django==1.7.1 from requirements file
+flask==0.10.1        # Flask from requirements file
+itsdangerous==0.24   # itsdangerous>=0.21 from `Flask from requirements file`
+jinja2==2.7.3        # jinja2 from requirements file
+markupsafe==0.23     # markupsafe from `jinja2 from requirements file`
+nomad==1.9           # nomad from requirements file
+opster==4.1          # opster>=4.0 from `nomad from requirements file`
+pillow==2.6.1        # Pillow from requirements file
+termcolor==1.1.0     # termcolor from `nomad from requirements file`
+trafaret==0.5.3      # trafaret>0.5.2 from requirements file
+werkzeug==0.9.6      # Werkzeug>=0.7 from `Flask from requirements file`

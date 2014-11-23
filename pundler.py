@@ -1,7 +1,11 @@
 from __future__ import print_function, unicode_literals
 import re
-from urllib.parse import urlparse
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    import urlparse
 from collections import defaultdict
+import platform
 import os.path as op
 import os
 from os import makedirs
@@ -13,12 +17,21 @@ import shlex
 import pkg_resources
 
 ### Dark zone
-from importlib.machinery import SourceFileLoader
-
-distlib = SourceFileLoader('distlib', op.join(op.dirname(__file__), 'distlib/distlib/__init__.py')).load_module()
-locators = SourceFileLoader('distlib.locators', op.join(op.dirname(__file__), 'distlib/distlib/locators.py')).load_module()
-locate = locators.locate
+try:
+    from importlib.machinery import SourceFileLoader
+    distlib = SourceFileLoader('distlib', op.join(op.dirname(__file__), 'distlib/distlib/__init__.py')).load_module()
+    locators = SourceFileLoader('distlib.locators', op.join(op.dirname(__file__), 'distlib/distlib/locators.py')).load_module()
+    locate = locators.locate
+except ImportError:
+    from pip._vendor.distlib.locators import locate
 ###########
+
+
+def python_version_string():
+    version_info = sys.pypy_version_info if platform.python_implementation() == 'PyPy' else sys.version_info
+    version_string = '{v.major}.{v.minor}.{v.micro}'.format(v=version_info)
+    build, _ = platform.python_build()
+    return '{}-{}-{}'.format(platform.python_implementation(), version_string, build)
 
 
 def parse_file(filename):
@@ -55,7 +68,7 @@ class CustomReq(object):
         return '<CustomReq %r>' % self.__dict__
 
     def why_str(self):
-        if isinstance(self.source, str):
+        if isinstance(self.source, (str, unicode)):
             return '{} from {}'.format(self.line, self.source)
         if isinstance(self.source, CustomReq):
             return '{} from `{}`'.format(self.line, self.source.why_str())
@@ -75,7 +88,7 @@ class CustomReq(object):
     def locate_and_install(self, suite):
         loc_dist = locate(str(self.req))
         if not loc_dist:
-            log_dist = locate(str(self.req), prereleases=True)
+            loc_dist = locate(str(self.req), prereleases=True)
         target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
         try:
             makedirs(target_dir)
@@ -249,7 +262,7 @@ class Parser(object):
 
     def parse_requirements(self):
         requirements = parse_file(self.requirements_file) if op.exists(self.requirements_file) else []
-        return dict((req.key, req) for req in (CustomReq(line, self.requirements_file) for line in requirements))
+        return dict((req.key, req) for req in (CustomReq(line, 'requirements file') for line in requirements))
 
 
 # Commands
@@ -294,16 +307,21 @@ def create_parser_parameters():
     # print(base_path)
     if not base_path:
         return None
+    py_version_path = python_version_string()
     return {
         'requirements_file': op.join(base_path, 'requirements.txt'),
         'freezed_file': op.join(base_path, 'freezed.txt'),
-        'directory': op.join(op.expanduser('~'), '.pundledir')
+        'directory': op.join(op.expanduser('~'), '.pundledir', py_version_path)
     }
 
 
 if __name__ == '__main__':
     # I think better have pundledir in special home user directory
     parser_kw = create_parser_parameters()
+    if not parser_kw:
+        print('You have not requirements.txt. Create it and run again.')
+        exit(1)
+
     if len(sys.argv) == 1 or sys.argv[1] == 'install':
         check_if_freezed_installed(**parser_kw)
 

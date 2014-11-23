@@ -37,11 +37,12 @@ DONE
 - on update rewrite freezed.txt
 - on launch check if freezed.txt is in touch with requirements.txt
 - Search through hierarchy upward
+- tie packages to python version.
 
 
 TODO
 ----
-- tie packages to python version.
+- upgrade must lookup PyPI for new version
 - Pundler folder locations?
 - add vcs support
 - package scripts
