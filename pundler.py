@@ -17,14 +17,15 @@ import shlex
 import pkg_resources
 
 ### Dark zone
-try:
-    from importlib.machinery import SourceFileLoader
-    distlib = SourceFileLoader('distlib', op.join(op.dirname(__file__), 'distlib/distlib/__init__.py')).load_module()
-    locators = SourceFileLoader('distlib.locators', op.join(op.dirname(__file__), 'distlib/distlib/locators.py')).load_module()
-    locate = locators.locate
-except ImportError:
-    from pip._vendor.distlib.locators import locate
+# try:
+#     from importlib.machinery import SourceFileLoader
+#     distlib = SourceFileLoader('distlib', op.join(op.dirname(__file__), 'distlib/distlib/__init__.py')).load_module()
+#     locators = SourceFileLoader('distlib.locators', op.join(op.dirname(__file__), 'distlib/distlib/locators.py')).load_module()
+#     locate = locators.locate
+# except ImportError:
+#     from pip._vendor.distlib.locators import locate
 ###########
+from pip._vendor.distlib.locators import locate
 
 
 def python_version_string():
