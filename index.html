@@ -31,14 +31,14 @@ The virtualenv alternative for python developer
 
 - You have to create venv for every project and for every python interpreter version
 - With PIP you cannot be sure that your will get some packages versions when you call `pip install` (pip-tools?)
-  in case you have not write versions exactly.
+  in case you have not write versions, dependencies with versions exactly and using --no-deps (you must).
 
 ---
 
 # Working with branches
 
 - You are working on branch where you have changed packages version with breaking changes in API.
-- When you in situation to fix something in other branch you will need to change virtualenv.
+- When you are in situation to fix something in other branch you will need to change virtualenv.
 - And when work done you need to change it again.
 
 Not so with Pundler.
@@ -48,12 +48,12 @@ Not so with Pundler.
 # Meet Pundler
 
 It solves freezed mess
-- read your requirements.txt
-- create freezed.txt with exact installed versions
-- keep all packages installed and share them between projects
-- load desired versions of packages
+- reads your requirements.txt
+- creates freezed.txt with exact installed versions of your requirements and their dependencies
+- keeps all packages installed and share them between projects
+- loads desired versions of packages
 
-You will always work with package version that freezed.txt point to.
+You will always work with package version that freezed.txt points to.
 
 ---
 
@@ -63,7 +63,7 @@ Punder keeps packages per user and python version.
 Something like `~/.pundledir/CPython-3.4.1-default` or `~/.pundledir/PyPy-2.3.1-32f35069a16d/`
 
 Pundler installs every package in isolated dir like `django-1.7.1` or `flask-0.10.1`, so it can
-keep multiple packages versions installed and selected required versions on load.
+keep multiple packages versions installed and select required versions on load.
 
 ---
 
@@ -105,11 +105,11 @@ Want to play with it?
   - install python (strongly recommended)
   - `cd; git clone --recursive https://github.com/Deepwalker/pundler.git; python ~/pundler/pundler.py fixate` 
   - `cd project_dir`
-  - python -m pundler upgrade # will create freezed.txt and install all packages
-  - python manage.py run
+  - `python -m pundler upgrade` # will create freezed.txt and install all packages
+  - `python manage.py run`
 
     </textarea>
-    <script src="http:////gnab.github.io/remark/downloads/remark-latest.min.js">
+    <script src="http://gnab.github.io/remark/downloads/remark-latest.min.js">
     </script>
     <script>
       var slideshow = remark.create();
