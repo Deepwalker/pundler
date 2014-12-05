@@ -289,6 +289,7 @@ def check_if_freezed_installed(*a, **kw):
         suite.install_freezed()
     else:
         print('Nothing to do, all packages installed')
+    return suite
 
 
 def search_files_upward(start_path=None):
@@ -364,5 +365,19 @@ if __name__ == '__main__':
         print('Complete')
 
     elif sys.argv[1] == 'exec':
-        # d.get_entry_info('console_scripts', 'nomad').load(require=False)
+        # TODO proof implementation
+        # clean it
+        params = create_parser_or_exit()
+        suite = check_if_freezed_installed(**params)
+        entries = {}
+        for r in suite.states.values():
+            d = r.installed[0]
+            scripts = d.get_entry_map().get('console_scripts', {})
+            for name in scripts:
+                entries[name] = d
+        cmd = sys.argv[2]
+        exc = entries[cmd].get_entry_info('console_scripts', cmd).load(require=False)
+        old_arv = sys.argv
+        sys.argv = [sys.argv[0]] + sys.argv[3:]
+        exc()
         pass

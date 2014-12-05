@@ -37,11 +37,11 @@ DONE
 - on launch check if freezed.txt is in touch with requirements.txt
 - Search through hierarchy upward
 - tie packages to python version.
+- package scripts
 
 
 TODO
 ----
-- upgrade must lookup PyPI for new version
-- add vcs support
-- package scripts
-- tie packages to python version. Do this only where we need this (C extensions, py2 without __pycache__ support)
+- ! upgrade must lookup PyPI for new version
+- ! add vcs support
+- ? tie packages only where we need this (C extensions, py2 without __pycache__ support)
