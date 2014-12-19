@@ -45,3 +45,4 @@ TODO
 - ! upgrade must lookup PyPI for new version
 - ! add vcs support
 - ? tie packages only where we need this (C extensions, py2 without __pycache__ support)
+- bundle distlib

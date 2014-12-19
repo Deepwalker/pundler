@@ -16,16 +16,12 @@ import sys
 import shlex
 import pkg_resources
 
-### Dark zone
-# try:
-#     from importlib.machinery import SourceFileLoader
-#     distlib = SourceFileLoader('distlib', op.join(op.dirname(__file__), 'distlib/distlib/__init__.py')).load_module()
-#     locators = SourceFileLoader('distlib.locators', op.join(op.dirname(__file__), 'distlib/distlib/locators.py')).load_module()
-#     locate = locators.locate
-# except ImportError:
-#     from pip._vendor.distlib.locators import locate
-###########
+# TODO bundle own version of distlib
 from pip._vendor.distlib.locators import locate
+
+
+def print_message(*a, **kw):
+    print(*a, **kw)
 
 
 def python_version_string():
@@ -130,7 +126,7 @@ class RequirementState(object):
             self.requirement = req
 
     def has_correct_freeze(self):
-        # print(self.key, self.requirement and self.freezed and self.freezed in self.requirement)
+        # print_message(self.key, self.requirement and self.freezed and self.freezed in self.requirement)
         return self.requirement and self.freezed and self.freezed in self.requirement
 
     def check_installed_version(self, suite, install=False):
@@ -270,25 +266,25 @@ class Parser(object):
 def freeze_them_all(*a, **kw):
     suite = Parser(*a, **kw).create_suite()
     if suite.need_refreeze():
-        print('Freezed version is outdated')
+        print_message('Freezed version is outdated')
         suite.refreeze()
         with open(suite.parser.freezed_file, 'w') as f:
             f.write(suite.dump_freezed())
-        print(suite.dump_freezed())
+        print_message(suite.dump_freezed())
     else:
-        print('All up to date')
+        print_message('All up to date')
 
 
 def check_if_freezed_installed(*a, **kw):
     suite = Parser(*a, **kw).create_suite()
     if suite.need_refreeze():
-        print('Freezed version is outdated')
+        print_message('Freezed version is outdated')
         sys.exit(1)
     if suite.need_install():
-        print('Install some packages')
+        print_message('Install some packages')
         suite.install_freezed()
     else:
-        print('Nothing to do, all packages installed')
+        print_message('Nothing to do, all packages installed')
     return suite
 
 
@@ -306,7 +302,7 @@ def search_files_upward(start_path=None):
 
 def create_parser_parameters():
     base_path = search_files_upward()
-    # print(base_path)
+    # print_message(base_path)
     if not base_path:
         return None
     py_version_path = python_version_string()
@@ -320,7 +316,7 @@ def create_parser_parameters():
 def create_parser_or_exit():
     parser_kw = create_parser_parameters()
     if not parser_kw:
-        print('You have not requirements.txt. Create it and run again.')
+        print_message('You have not requirements.txt. Create it and run again.')
         exit(1)
     return parser_kw
 
@@ -333,7 +329,7 @@ if __name__ == '__main__':
         freeze_them_all(**create_parser_or_exit())
 
     elif sys.argv[1] == 'fixate':
-        print('Fixate')
+        print_message('Fixate')
         import site
         userdir = site.getusersitepackages()
         if not userdir:
@@ -345,7 +341,7 @@ if __name__ == '__main__':
         template = open(op.join(op.dirname(__file__), 'usercustomize.py')).read()
         template = template.replace('op.dirname(__file__)', "'%s'" % op.abspath(op.dirname(__file__)))
         usercustomize_file = op.join(userdir, 'usercustomize.py')
-        print('Will edit %s file' % usercustomize_file)
+        print_message('Will edit %s file' % usercustomize_file)
         if op.exists(usercustomize_file):
             content = open(usercustomize_file).read()
             if '# pundler user costumization start' in content:
@@ -358,11 +354,11 @@ if __name__ == '__main__':
             open(usercustomize_file, 'w').write(template)
         link_file = op.join(userdir, 'pundler.py')
         if op.lexists(link_file):
-            print('Remove exist link to pundler')
+            print_message('Remove exist link to pundler')
             os.unlink(link_file)
-        print('Create link to pundler %s' % link_file)
+        print_message('Create link to pundler %s' % link_file)
         os.symlink(op.abspath(__file__), link_file)
-        print('Complete')
+        print_message('Complete')
 
     elif sys.argv[1] == 'exec':
         # TODO proof implementation
