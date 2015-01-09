@@ -19,6 +19,10 @@ import pkg_resources
 # TODO bundle own version of distlib
 from pip._vendor.distlib.locators import locate
 
+try:
+    str_types = (basestring,)
+except NameError:
+    str_types = (str, bytes)
 
 def print_message(*a, **kw):
     print(*a, **kw)
@@ -65,7 +69,7 @@ class CustomReq(object):
         return '<CustomReq %r>' % self.__dict__
 
     def why_str(self):
-        if isinstance(self.source, (str, unicode)):
+        if isinstance(self.source, str_types):
             return '{} from {}'.format(self.line, self.source)
         if isinstance(self.source, CustomReq):
             return '{} from `{}`'.format(self.line, self.source.why_str())
