@@ -70,9 +70,9 @@ class CustomReq(object):
 
     def why_str(self):
         if isinstance(self.source, str_types):
-            return '{} from {}'.format(self.line, self.source)
+            return '{} << {}'.format(self.line, self.source)
         if isinstance(self.source, CustomReq):
-            return '{} from `{}`'.format(self.line, self.source.why_str())
+            return '{} << {}'.format(self.line, self.source.why_str())
         return '?'
 
     def adjust_with_req(self, req):
@@ -323,6 +323,7 @@ def create_parser_or_exit():
         print_message('You have not requirements.txt. Create it and run again.')
         exit(1)
     return parser_kw
+
 
 if __name__ == '__main__':
     # I think better have pundledir in special home user directory
