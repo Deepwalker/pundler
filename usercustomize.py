@@ -1,5 +1,5 @@
 
-# pundler user costumization start
+# pundler user customization start
 import os.path as op
 from importlib.machinery import SourceFileLoader
 pundler = SourceFileLoader('pundler', op.join(op.dirname(__file__), 'pundler.py')).load_module()
@@ -13,4 +13,4 @@ if parser_kw:
 
     suite.activate_all()
     pundler.global_suite = suite
-# pundler user costumization end
+# pundler user customization end

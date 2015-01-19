@@ -16,7 +16,7 @@ import sys
 import shlex
 import pkg_resources
 
-# TODO bundle own version of distlib
+# TODO bundle own version of distlib. Perhaps
 from pip._vendor.distlib.locators import locate
 
 try:
@@ -194,8 +194,8 @@ class Suite(object):
     def need_refreeze(self):
         self.refreeze(install=False)
         not_correct = not all(state.has_correct_freeze() for state in self.required_states())
-        # unneeded = any(state.freezed for state in self.states.values() if not state.requirement)
-        return not_correct #or unneeded TODO
+        unneeded = any(state.freezed for state in self.states.values() if not state.requirement)
+        return not_correct or unneeded
 
     def adjust_with_req(self, req, install=False):
         state = self.states.get(req.key)
