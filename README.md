@@ -38,11 +38,13 @@ DONE
 - Search through hierarchy upward
 - tie packages to python version.
 - package scripts
+- upgrade must lookup PyPI for new version
 
 
 TODO
 ----
-- ! upgrade must lookup PyPI for new version
+- ! write cause to freezed.txt then we can check unneeded requirements without installed packages
 - ! add vcs support
 - ? tie packages only where we need this (C extensions, py2 without __pycache__ support)
-- bundle distlib
+- ? bundle distlib
+- ? bundle pkg_resources

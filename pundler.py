@@ -86,6 +86,9 @@ class CustomReq(object):
     def key(self):
         return self.req.key if self.req else self.egg
 
+    def locate(self, suite):
+        return locate(str(self.req))
+
     def locate_and_install(self, suite):
         loc_dist = locate(str(self.req))
         if not loc_dist:
@@ -119,6 +122,8 @@ class RequirementState(object):
         self.requirement = req
         self.freezed = freezed
         self.installed = installed or []
+        self.installed.sort()
+        self.installed.reverse()
 
     def __repr__(self):
         return '<RequirementState %r>' % self.__dict__
@@ -130,7 +135,6 @@ class RequirementState(object):
             self.requirement = req
 
     def has_correct_freeze(self):
-        # print_message(self.key, self.requirement and self.freezed and self.freezed in self.requirement)
         return self.requirement and self.freezed and self.freezed in self.requirement
 
     def check_installed_version(self, suite, install=False):
@@ -139,13 +143,22 @@ class RequirementState(object):
             (installation for installation in self.installed if installation.version in self.requirement),
             None
         )
-        if install and not dist:
-            dist = self.requirement.locate_and_install(suite)
-            self.installed.append(dist)
+        if install:
+            if dist:
+                # check if we have fresh packages on PIPY
+                latest = self.requirement.locate(suite)
+                if pkg_resources.parse_version(latest.version) > pkg_resources.parse_version(dist.version):
+                    print_message('Upgrade from to', dist, latest)
+                    dist = self.requirement.locate_and_install(suite)
+                # Anyway use latest available dist
+                self.freezed = dist.version
+                self.installed.append(dist)
+            else:
+                dist = self.requirement.locate_and_install(suite)
+                self.freezed = dist.version
+                self.installed.append(dist)
         if install and not self.has_correct_freeze():
             self.freezed = dist.version
-        # if not dist:
-            # raise Exception('Cannot install %r' % self.requirement)
         return dist
 
     def reveal_requirements(self, suite, install=False):
@@ -161,10 +174,9 @@ class RequirementState(object):
         return '{:20s} # {}'.format(main, comment)
 
     def freezed_dist(self):
-        return next(
-            ((dist if dist.version == self.freezed else None) for dist in self.installed),
-            None
-        )
+        for dist in self.installed:
+            if dist.version == self.freezed:
+                return dist
 
     def install_freezed(self, suite):
         if self.freezed_dist() or not self.freezed:
@@ -174,7 +186,11 @@ class RequirementState(object):
         self.installed.append(dist)
 
     def activate(self):
-        self.freezed_dist().activate()
+        dist = self.freezed_dist()
+        if dist:
+            dist.activate()
+        else:
+            raise Exception('Distribution is not installed %s' % self.key)
 
 
 class Suite(object):
@@ -195,7 +211,9 @@ class Suite(object):
         self.refreeze(install=False)
         not_correct = not all(state.has_correct_freeze() for state in self.required_states())
         unneeded = any(state.freezed for state in self.states.values() if not state.requirement)
-        return not_correct or unneeded
+        if unneeded:
+            print('!!! Unneeded', [state.key for state in self.states.values() if not state.requirement])
+        return not_correct #or unneeded
 
     def adjust_with_req(self, req, install=False):
         state = self.states.get(req.key)
@@ -266,32 +284,7 @@ class Parser(object):
         return dict((req.key, req) for req in (CustomReq(line, 'requirements file') for line in requirements))
 
 
-# Commands
-def freeze_them_all(*a, **kw):
-    suite = Parser(*a, **kw).create_suite()
-    if suite.need_refreeze():
-        print_message('Freezed version is outdated')
-        suite.refreeze()
-        with open(suite.parser.freezed_file, 'w') as f:
-            f.write(suite.dump_freezed())
-        print_message(suite.dump_freezed())
-    else:
-        print_message('All up to date')
-
-
-def check_if_freezed_installed(*a, **kw):
-    suite = Parser(*a, **kw).create_suite()
-    if suite.need_refreeze():
-        print_message('Freezed version is outdated')
-        sys.exit(1)
-    if suite.need_install():
-        print_message('Install some packages')
-        suite.install_freezed()
-    else:
-        print_message('Nothing to do, all packages installed')
-    return suite
-
-
+# Utilities
 def search_files_upward(start_path=None):
     "Search for requirements.txt upward"
     if not start_path:
@@ -306,7 +299,6 @@ def search_files_upward(start_path=None):
 
 def create_parser_parameters():
     base_path = search_files_upward()
-    # print_message(base_path)
     if not base_path:
         return None
     py_version_path = python_version_string()
@@ -325,45 +317,70 @@ def create_parser_or_exit():
     return parser_kw
 
 
+# Commands
+def upgrade_all(*a, **kw):
+    suite = Parser(*a, **kw).create_suite()
+    suite.refreeze()
+    with open(suite.parser.freezed_file, 'w') as f:
+        f.write(suite.dump_freezed())
+
+
+def install_all(*a, **kw):
+    suite = Parser(*a, **kw).create_suite()
+    if suite.need_refreeze():
+        print_message('Freezed version is outdated')
+        sys.exit(1)
+    if suite.need_install():
+        print_message('Install some packages')
+        suite.install_freezed()
+    else:
+        print_message('Nothing to do, all packages installed')
+    return suite
+
+
+def fixate():
+    print_message('Fixate')
+    import site
+    userdir = site.getusersitepackages()
+    if not userdir:
+        raise Exception('Can`t fixate due user have not site package directory')
+    try:
+        makedirs(userdir)
+    except OSError:
+        pass
+    template = open(op.join(op.dirname(__file__), 'usercustomize.py')).read()
+    template = template.replace('op.dirname(__file__)', "'%s'" % op.abspath(op.dirname(__file__)))
+    usercustomize_file = op.join(userdir, 'usercustomize.py')
+    print_message('Will edit %s file' % usercustomize_file)
+    if op.exists(usercustomize_file):
+        content = open(usercustomize_file).read()
+        if '# pundler user costumization start' in content:
+            regex = re.compile(r'\n# pundler user costumization start.*# pundler user costumization end\n', re.DOTALL)
+            content, res = regex.subn(template, content)
+            open(usercustomize_file, 'w').write(content)
+        else:
+            open(usercustomize_file, 'a').write(content)
+    else:
+        open(usercustomize_file, 'w').write(template)
+    link_file = op.join(userdir, 'pundler.py')
+    if op.lexists(link_file):
+        print_message('Remove exist link to pundler')
+        os.unlink(link_file)
+    print_message('Create link to pundler %s' % link_file)
+    os.symlink(op.abspath(__file__), link_file)
+    print_message('Complete')
+
+
 if __name__ == '__main__':
     # I think better have pundledir in special home user directory
     if len(sys.argv) == 1 or sys.argv[1] == 'install':
-        check_if_freezed_installed(**create_parser_or_exit())
+        install_all(**create_parser_or_exit())
 
     elif sys.argv[1] == 'upgrade':
-        freeze_them_all(**create_parser_or_exit())
+        upgrade_all(**create_parser_or_exit())
 
     elif sys.argv[1] == 'fixate':
-        print_message('Fixate')
-        import site
-        userdir = site.getusersitepackages()
-        if not userdir:
-            raise Exception('Can`t fixate due user have not site package directory')
-        try:
-            makedirs(userdir)
-        except OSError:
-            pass
-        template = open(op.join(op.dirname(__file__), 'usercustomize.py')).read()
-        template = template.replace('op.dirname(__file__)', "'%s'" % op.abspath(op.dirname(__file__)))
-        usercustomize_file = op.join(userdir, 'usercustomize.py')
-        print_message('Will edit %s file' % usercustomize_file)
-        if op.exists(usercustomize_file):
-            content = open(usercustomize_file).read()
-            if '# pundler user costumization start' in content:
-                regex = re.compile(r'\n# pundler user costumization start.*# pundler user costumization end\n', re.DOTALL)
-                content, res = regex.subn(template, content)
-                open(usercustomize_file, 'w').write(content)
-            else:
-                open(usercustomize_file, 'a').write(content)
-        else:
-            open(usercustomize_file, 'w').write(template)
-        link_file = op.join(userdir, 'pundler.py')
-        if op.lexists(link_file):
-            print_message('Remove exist link to pundler')
-            os.unlink(link_file)
-        print_message('Create link to pundler %s' % link_file)
-        os.symlink(op.abspath(__file__), link_file)
-        print_message('Complete')
+        fixate()
 
     elif sys.argv[1] == 'exec':
         # TODO proof implementation
