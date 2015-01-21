@@ -82,6 +82,7 @@ class CustomReq(object):
         self.requirement = pkg_resources.Requirement.parse('{} {}'.format(
             self.req.project_name, versions
         ))
+
     @property
     def key(self):
         return self.req.key if self.req else self.egg
