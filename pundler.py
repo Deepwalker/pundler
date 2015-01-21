@@ -17,7 +17,10 @@ import shlex
 import pkg_resources
 
 # TODO bundle own version of distlib. Perhaps
-from pip._vendor.distlib.locators import locate
+try:
+    from pip._vendor.distlib.locators import locate
+except ImportError:
+    from pip.vendor.distlib.locators import locate
 
 try:
     str_types = (basestring,)
@@ -94,7 +97,7 @@ class CustomReq(object):
         return dist
 
     def locate_and_install(self, suite):
-        loc_dist = self.locate()
+        loc_dist = self.locate(suite)
         target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
         try:
             makedirs(target_dir)
@@ -212,9 +215,9 @@ class Suite(object):
     def need_refreeze(self):
         self.refreeze(install=False)
         not_correct = not all(state.has_correct_freeze() for state in self.required_states())
-        unneeded = any(state.freezed for state in self.states.values() if not state.requirement)
-        if unneeded:
-            print('!!! Unneeded', [state.key for state in self.states.values() if not state.requirement])
+        # unneeded = any(state.freezed for state in self.states.values() if not state.requirement)
+        # if unneeded:
+        #     print('!!! Unneeded', [state.key for state in self.states.values() if not state.requirement])
         return not_correct #or unneeded
 
     def adjust_with_req(self, req, install=False):
@@ -431,8 +434,7 @@ if __name__ == '__main__':
         fixate()
 
     elif sys.argv[1] == 'exec':
-        interpreter, _command, script_name, *args = sys.argv
-        execute(interpreter, script_name, args)
+        execute(sys.argv[0], sys.argv[2], sys.argv[2:])
 
     elif sys.argv[1] == 'entry_points':
         for entry, package in entry_points().items():

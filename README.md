@@ -8,6 +8,14 @@ Git, svn and so on support planned to support a bit later.
 
 Now this is expirement, but very cool one.
 
+Prerequisites
+-------------
+
+- I recommend use pyenv
+- install setuptools if you python distribution has not
+- pundler needs pip
+
+
 Commands
 --------
 
