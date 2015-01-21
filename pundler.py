@@ -340,6 +340,27 @@ def install_all(*a, **kw):
     return suite
 
 
+FIXATE_TEMPLATE = """
+
+# pundler user customization start
+import os.path as op
+from importlib.machinery import SourceFileLoader
+pundler = SourceFileLoader('pundler', op.join(op.dirname(__file__), 'pundler.py')).load_module()
+
+
+parser_kw = pundler.create_parser_parameters()
+if parser_kw:
+    suite = pundler.Parser(**parser_kw).create_suite()
+    if suite.need_refreeze():
+        raise Exception('%s file is outdated' % suite.parser.freezed_file)
+
+    suite.activate_all()
+    pundler.global_suite = suite
+# pundler user customization end
+
+"""
+
+
 def fixate():
     print_message('Fixate')
     import site
@@ -350,8 +371,7 @@ def fixate():
         makedirs(userdir)
     except OSError:
         pass
-    template = open(op.join(op.dirname(__file__), 'usercustomize.py')).read()
-    template = template.replace('op.dirname(__file__)', "'%s'" % op.abspath(op.dirname(__file__)))
+    template = FIXATE_TEMPLATE.replace('op.dirname(__file__)', "'%s'" % op.abspath(op.dirname(__file__)))
     usercustomize_file = op.join(userdir, 'usercustomize.py')
     print_message('Will edit %s file' % usercustomize_file)
     if op.exists(usercustomize_file):
