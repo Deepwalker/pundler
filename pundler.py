@@ -90,14 +90,14 @@ class CustomReq(object):
     def key(self):
         return self.req.key if self.req else self.egg
 
-    def locate(self, suite):
+    def locate(self):
         dist = locate(str(self.req))
         if not dist:
             dist = locate(str(self.req), prereleases=True)
         return dist
 
     def locate_and_install(self, suite):
-        loc_dist = self.locate(suite)
+        loc_dist = self.locate()
         target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
         try:
             makedirs(target_dir)
@@ -151,7 +151,7 @@ class RequirementState(object):
         if install:
             if dist:
                 # check if we have fresh packages on PIPY
-                latest = self.requirement.locate(suite)
+                latest = self.requirement.locate()
                 if pkg_resources.parse_version(latest.version) > pkg_resources.parse_version(dist.version):
                     print_message('Upgrade from to', dist, latest)
                     dist = self.requirement.locate_and_install(suite)
@@ -215,6 +215,7 @@ class Suite(object):
     def need_refreeze(self):
         self.refreeze(install=False)
         not_correct = not all(state.has_correct_freeze() for state in self.required_states())
+        # TODO
         # unneeded = any(state.freezed for state in self.states.values() if not state.requirement)
         # if unneeded:
         #     print('!!! Unneeded', [state.key for state in self.states.values() if not state.requirement])
@@ -434,7 +435,7 @@ if __name__ == '__main__':
         fixate()
 
     elif sys.argv[1] == 'exec':
-        execute(sys.argv[0], sys.argv[2], sys.argv[2:])
+        execute(sys.argv[0], sys.argv[2], sys.argv[3:])
 
     elif sys.argv[1] == 'entry_points':
         for entry, package in entry_points().items():

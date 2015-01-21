@@ -2,6 +2,7 @@ cffi==0.8.6          # cffi>=0.8 << cryptography << requirements file
 configparser==3.5.0b2 # configparser==3.5.0b2 << requirements file
 cryptography==0.7.2  # cryptography << requirements file
 django==1.7.1        # Django==1.7.1 << requirements file
+enum34==1.0.4        # enum34 << cryptography << requirements file
 flask==0.10.1        # Flask << requirements file
 itsdangerous==0.24   # itsdangerous>=0.21 << Flask << requirements file
 jinja2==2.7.3        # jinja2 << requirements file
