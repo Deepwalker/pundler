@@ -87,12 +87,13 @@ class CustomReq(object):
         return self.req.key if self.req else self.egg
 
     def locate(self, suite):
-        return locate(str(self.req))
+        dist = locate(str(self.req))
+        if not dist:
+            dist = locate(str(self.req), prereleases=True)
+        return dist
 
     def locate_and_install(self, suite):
-        loc_dist = locate(str(self.req))
-        if not loc_dist:
-            loc_dist = locate(str(self.req), prereleases=True)
+        loc_dist = self.locate()
         target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
         try:
             makedirs(target_dir)
@@ -371,6 +372,22 @@ def fixate():
     print_message('Complete')
 
 
+def execute(interpreter, cmd, args):
+    # TODO proof implementation
+    # clean it
+    params = create_parser_or_exit()
+    suite = install_all(**params)
+    entries = {}
+    for r in suite.states.values():
+        d = r.installed[0]
+        scripts = d.get_entry_map().get('console_scripts', {})
+        for name in scripts:
+            entries[name] = d
+    exc = entries[cmd].get_entry_info('console_scripts', cmd).load(require=False)
+    sys.argv = [interpreter] + args
+    exc()
+
+
 if __name__ == '__main__':
     # I think better have pundledir in special home user directory
     if len(sys.argv) == 1 or sys.argv[1] == 'install':
@@ -383,19 +400,5 @@ if __name__ == '__main__':
         fixate()
 
     elif sys.argv[1] == 'exec':
-        # TODO proof implementation
-        # clean it
-        params = create_parser_or_exit()
-        suite = check_if_freezed_installed(**params)
-        entries = {}
-        for r in suite.states.values():
-            d = r.installed[0]
-            scripts = d.get_entry_map().get('console_scripts', {})
-            for name in scripts:
-                entries[name] = d
-        cmd = sys.argv[2]
-        exc = entries[cmd].get_entry_info('console_scripts', cmd).load(require=False)
-        old_arv = sys.argv
-        sys.argv = [sys.argv[0]] + sys.argv[3:]
-        exc()
-        pass
+        interpreter, _command, script_name, *args = sys.argv
+        execute(interpreter, script_name, args)
