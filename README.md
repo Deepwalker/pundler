@@ -17,6 +17,10 @@ Commands
 
 `pundler fixate` installs site costumization for current python
 
+`pundler exec cmd [args]` executes entry point from one os the installed packages
+
+`pundler entry_points` prints entry points from all packages
+
 
 How to play with it
 -------------------

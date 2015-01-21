@@ -373,19 +373,27 @@ def fixate():
     print_message('Complete')
 
 
-def execute(interpreter, cmd, args):
-    # TODO proof implementation
-    # clean it
-    params = create_parser_or_exit()
-    suite = install_all(**params)
+def entry_points():
+    parser_kw = create_parser_parameters()
+    suite = Parser(**parser_kw).create_suite()
+    if suite.need_refreeze():
+        raise Exception('%s file is outdated' % suite.parser.freezed_file)
+    suite.activate_all()
     entries = {}
     for r in suite.states.values():
         d = r.installed[0]
         scripts = d.get_entry_map().get('console_scripts', {})
         for name in scripts:
             entries[name] = d
+    return entries
+
+
+def execute(interpreter, cmd, args):
+    # TODO proof implementation
+    # clean it
+    entries = entry_points()
     exc = entries[cmd].get_entry_info('console_scripts', cmd).load(require=False)
-    sys.argv = [interpreter] + args
+    sys.argv = [cmd] + args
     exc()
 
 
@@ -403,3 +411,7 @@ if __name__ == '__main__':
     elif sys.argv[1] == 'exec':
         interpreter, _command, script_name, *args = sys.argv
         execute(interpreter, script_name, args)
+
+    elif sys.argv[1] == 'entry_points':
+        for entry, package in entry_points().items():
+            print('%s (%s)' % (entry, package))
