@@ -381,7 +381,9 @@ def entry_points():
     suite.activate_all()
     entries = {}
     for r in suite.states.values():
-        d = r.installed[0]
+        d = r.freezed_dist()
+        if not d:
+            continue
         scripts = d.get_entry_map().get('console_scripts', {})
         for name in scripts:
             entries[name] = d
