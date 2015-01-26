@@ -194,6 +194,7 @@ class RequirementState(object):
         dist = self.freezed_dist()
         if dist:
             dist.activate()
+            pkg_resources.working_set.add_entry(dist.location)
         else:
             raise Exception('Distribution is not installed %s' % self.key)
 

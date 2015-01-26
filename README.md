@@ -29,6 +29,8 @@ Commands
 
 `pundler entry_points` prints entry points from all packages
 
+`pundler edit` returns path to package directory
+
 
 How to play with it
 -------------------
