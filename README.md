@@ -60,6 +60,9 @@ TODO
     In upgrade_all - upgrade all packages.
 - ! write cause to freezed.txt then we can check unneeded requirements without installed packages
 - ! add vcs support
+- add environment support, aka developmment, testing
+Maybe generate freezed.txt only for pip and use more rich structure for itself?
+And put only production packages to freezed.txt, and track all, development and others in freezed.toml?
 - ? tie packages only where we need this (C extensions, py2 without __pycache__ support)
 - ? bundle distlib (now using one from pip)
 - ? bundle pkg_resources (now using one from setuptools)

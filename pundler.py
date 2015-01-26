@@ -345,7 +345,6 @@ def install_all(*a, **kw):
 
 
 FIXATE_TEMPLATE = """
-
 # pundler user customization start
 import os.path as op
 from importlib.machinery import SourceFileLoader
@@ -361,7 +360,6 @@ if parser_kw:
     suite.activate_all()
     pundler.global_suite = suite
 # pundler user customization end
-
 """
 
 
@@ -380,8 +378,8 @@ def fixate():
     print_message('Will edit %s file' % usercustomize_file)
     if op.exists(usercustomize_file):
         content = open(usercustomize_file).read()
-        if '# pundler user costumization start' in content:
-            regex = re.compile(r'\n# pundler user costumization start.*# pundler user costumization end\n', re.DOTALL)
+        if '# pundler user customization start' in content:
+            regex = re.compile(r'\n# pundler user customization start.*# pundler user customization end\n', re.DOTALL)
             content, res = regex.subn(template, content)
             open(usercustomize_file, 'w').write(content)
         else:
@@ -440,3 +438,10 @@ if __name__ == '__main__':
     elif sys.argv[1] == 'entry_points':
         for entry, package in entry_points().items():
             print('%s (%s)' % (entry, package))
+
+    elif sys.argv[1] == 'edit':
+        parser_kw = create_parser_parameters()
+        suite = Parser(**parser_kw).create_suite()
+        if suite.need_refreeze():
+            raise Exception('%s file is outdated' % suite.parser.freezed_file)
+        print(suite.states[sys.argv[2]].freezed_dist().location)
