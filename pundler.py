@@ -101,7 +101,7 @@ class CustomReq(object):
         target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
         try:
             makedirs(target_dir)
-        except FileExistsError:
+        except OSError:
             pass
         tmp_dir = tempfile.mkdtemp()
         try:
