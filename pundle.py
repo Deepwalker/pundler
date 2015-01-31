@@ -328,11 +328,11 @@ def create_parser_parameters():
     if not base_path:
         return None
     py_version_path = python_version_string()
-    pundlerdir_base = os.environ.get('PUNDLERDIR') or op.join(op.expanduser('~'), '.pundlerdir')
+    pundledir_base = os.environ.get('PUNDLEDIR') or op.join(op.expanduser('~'), '.pundledir')
     return {
         'requirements_file': op.join(base_path, 'requirements.txt'),
         'frozen_file': op.join(base_path, 'frozen.txt'),
-        'directory': op.join(pundlerdir_base, py_version_path)
+        'directory': op.join(pundledir_base, py_version_path)
     }
 
 
@@ -367,23 +367,23 @@ def install_all(*a, **kw):
 
 
 FIXATE_TEMPLATE = """
-# pundler user customization start
+# pundle user customization start
 import os.path as op
 from importlib.machinery import SourceFileLoader
-pundler = SourceFileLoader('pundler', op.join(op.dirname(__file__), 'pundler.py')).load_module()
+pundle = SourceFileLoader('pundle', op.join(op.dirname(__file__), 'pundle.py')).load_module()
 
 
-parser_kw = pundler.create_parser_parameters()
+parser_kw = pundle.create_parser_parameters()
 if parser_kw:
-    suite = pundler.Parser(**parser_kw).create_suite()
+    suite = pundle.Parser(**parser_kw).create_suite()
     if suite.need_freeze():
         raise Exception('%s file is outdated' % suite.parser.frozen_file)
     if suite.need_install():
         raise Exception('Some dependencies not installed')
 
     suite.activate_all()
-    pundler.global_suite = suite
-# pundler user customization end
+    pundle.global_suite = suite
+# pundle user customization end
 """
 
 
@@ -402,19 +402,19 @@ def fixate():
     print_message('Will edit %s file' % usercustomize_file)
     if op.exists(usercustomize_file):
         content = open(usercustomize_file).read()
-        if '# pundler user customization start' in content:
-            regex = re.compile(r'\n# pundler user customization start.*# pundler user customization end\n', re.DOTALL)
+        if '# pundle user customization start' in content:
+            regex = re.compile(r'\n# pundle user customization start.*# pundle user customization end\n', re.DOTALL)
             content, res = regex.subn(template, content)
             open(usercustomize_file, 'w').write(content)
         else:
             open(usercustomize_file, 'a').write(content)
     else:
         open(usercustomize_file, 'w').write(template)
-    link_file = op.join(userdir, 'pundler.py')
+    link_file = op.join(userdir, 'pundle.py')
     if op.lexists(link_file):
-        print_message('Remove exist link to pundler')
+        print_message('Remove exist link to pundle')
         os.unlink(link_file)
-    print_message('Create link to pundler %s' % link_file)
+    print_message('Create link to pundle %s' % link_file)
     os.symlink(op.abspath(__file__), link_file)
     print_message('Complete')
 

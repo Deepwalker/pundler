@@ -1,12 +1,48 @@
-Pundler
+Pundle
 =======
 
-Pundler is bunder-like replacement of virtualenv for developers and works great with pyenv.
-It is not recommended to use Pundler for deployment (it was created for different purpose)
+Pundle is bunder-like replacement of virtualenv for developers and works great with pyenv.
+It is not recommended to use Pundle for deployment (it was created for different purpose)
 and currently only works with PyPI packages. Git, SVN and other package sources will be added later.
 
 For now works only with PyPI packages.
 Git, svn and others support planned.
+
+
+Small workflow example:
+
+    # install it to site-packages for simplicity now (recommend use *sh alias and dedicated folder with git checkout)
+    > pip install pundle
+    # finished with virtualenv or python site-packages pollution, all packages will be in ~/.pundledir
+    # now long long time ago in one far far away project
+    > echo "Django" > requirements.txt
+    > pundle install
+    > cat frozen.txt
+    Django==1.6
+    > python manage.py runserver
+    CTRL-C
+    ... long work with project
+
+    # You want a refactoring and migrate to new framwork version.
+    # Your project has some incompatibility bugs now
+    > git checkout -b new_django_version
+    > pundle upgrade
+    > cat frozen.txt
+    Django==1.7.4
+    ... work hard for sometime
+
+    # Now you have alarm on production branch
+    > git commit -a -m 'Fixed first part of bugs with last django'
+    > git checkout master
+    > python manage.py runserver
+
+Feel it - you need not to remove virtualenv, or switch it, or anything else. Pundle looking into
+frozen.txt and activate that versions of packages that you need right now. You switch branch -
+package version switched with you.
+
+Pundle not about tracking requirements and filling frozen.txt with double-equals signs - its about
+importing right version of package in right place.
+
 
 
 Prerequisites
@@ -20,18 +56,18 @@ Prerequisites
 Commands
 --------
 
-`pundler [install]` will install files from frozen.txt file and reveal
+`pundle [install]` will install files from frozen.txt file and reveal
     new requirements if something is not frozen yet.
 
-`pundler upgrade` will recreate frozen.txt from requirements.txt.
+`pundle upgrade` will recreate frozen.txt from requirements.txt.
 
-`pundler fixate` installs site customization for current python.
+`pundle fixate` installs site customization for current python.
 
-`pundler exec cmd [args]` executes entry point from one of the installed packages.
+`pundle exec cmd [args]` executes entry point from one of the installed packages.
 
-`pundler entry_points` prints entry points from all packages.
+`pundle entry_points` prints entry points from all packages.
 
-`pundler edit [package]` returns path to package directory.
+`pundle edit [package]` returns path to package directory.
 
 
 How to play with it
@@ -40,20 +76,20 @@ How to play with it
 Simple with usercustomize.py:
 
     git clone git@github.com:Deepwalker/pundler.git
-    python pundler/pundler.py fixate
+    python pundler/pundle.py fixate
 
     cd testproject
-    python -m pundler upgrade
+    python -m pundle upgrade
 
-Pundler will create directory `~/.pundledir` and file `frozen.txt`.
+Pundle will create directory `~/.pundledir` and file `frozen.txt`.
 
-Or you can make ``alias pundler='python /full/path/to/pundler/pundler.py'`` and use it.
-And add ``/full/path/to/pundler`` to your ``PYTHONPATH``.
+Or you can make ``alias pundle='python /full/path/to/pundle/pundle.py'`` and use it.
+And add ``/full/path/to/pundle`` to your ``PYTHONPATH``.
 But you will need to manual load dependencies in your project start script, like this:
 
-    import pundler
-    parser_kw = pundler.create_parser_parameters()
-    suite = pundler.Parser(**parser_kw).create_suite()
+    import pundle
+    parser_kw = pundle.create_parser_parameters()
+    suite = pundle.Parser(**parser_kw).create_suite()
     if suite.need_freeze():
         raise Exception('%s file is outdated' % suite.parser.frozen_file)
     if suite.need_install():
