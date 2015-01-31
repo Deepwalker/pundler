@@ -1,7 +1,7 @@
 Pundler
 =======
 
-Python bundler alike alternative to virtualenv for development. Best play with pyenv.
+Python bundler alike alternative to virtualenv for development. Plays best with pyenv.
 For deployment use virtualenv or something special.
 
 For now works only with PyPI packages.
@@ -11,9 +11,9 @@ Git, svn and others support planned.
 Prerequisites
 -------------
 
-- I recommend use pyenv
-- install setuptools if you python distribution has not
-- pundler needs pip
+- I recommend using pyenv
+- requires setuptools
+- requires pip
 
 
 Commands
