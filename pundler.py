@@ -328,10 +328,11 @@ def create_parser_parameters():
     if not base_path:
         return None
     py_version_path = python_version_string()
+    pundlerdir_base = os.environ.get('PUNDLERDIR') or op.join(op.expanduser('~'), '.pundlerdir')
     return {
         'requirements_file': op.join(base_path, 'requirements.txt'),
         'freezed_file': op.join(base_path, 'freezed.txt'),
-        'directory': op.join(op.expanduser('~'), '.pundledir', py_version_path)
+        'directory': op.join(pundlerdir_base, py_version_path)
     }
 
 
