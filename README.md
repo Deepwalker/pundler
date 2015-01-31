@@ -20,17 +20,17 @@ Commands
 --------
 
 `pundler [install]` will install files from frozen.txt file and reveal
-    new requirements if something not frozen yet.
+    new requirements if something is not frozen yet.
 
-`pundler upgrade` will recreate frozen.txt from requirements.txt
+`pundler upgrade` will recreate frozen.txt from requirements.txt.
 
-`pundler fixate` installs site customization for current python
+`pundler fixate` installs site customization for current python.
 
-`pundler exec cmd [args]` executes entry point from one of the installed packages
+`pundler exec cmd [args]` executes entry point from one of the installed packages.
 
-`pundler entry_points` prints entry points from all packages
+`pundler entry_points` prints entry points from all packages.
 
-`pundler edit [package]` returns path to package directory
+`pundler edit [package]` returns path to package directory.
 
 
 How to play with it
@@ -46,8 +46,8 @@ Simple with usercustomize.py:
 
 Pundler will create directory `~/.pundledir` and file `frozen.txt`.
 
-Or you can make alias pundler='python /full/path/to/pundler/pundler.py' and use it.
-And add /full/path/to/pundler to your PYTHONPATH
+Or you can make ``alias pundler='python /full/path/to/pundler/pundler.py'`` and use it.
+And add ``/full/path/to/pundler`` to your ``PYTHONPATH``.
 But you will need to manual load dependencies in your project start script, like this:
 
     import pundler
@@ -62,7 +62,7 @@ But you will need to manual load dependencies in your project start script, like
 
 DONE
 ----
-- install by frozen.txt
+- install according to frozen.txt
 - on update rewrite frozen.txt
 - on launch check if frozen.txt is in touch with requirements.txt
 - search through hierarchy upward
@@ -78,7 +78,7 @@ TODO
 ----
 - ! write source of requirement (requirements.txt or other package) to frozen.txt then we can check unneeded requirements without installed packages
 - ! add vcs support
-- add environments support, aka developmment, testing.
+- add environments support, aka development, testing.
 Maybe generate frozen.txt only for pip and use more rich structure for itself?
 And put only production packages to frozen.txt, and track all, development and others in frozen.toml?
 - ? tie packages only where we need this (C extensions, py2 without __pycache__ support)
