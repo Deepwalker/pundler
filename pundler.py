@@ -96,8 +96,11 @@ class CustomReq(object):
             dist = locate(str(self.req), prereleases=True)
         return dist
 
-    def locate_and_install(self, suite):
+    def locate_and_install(self, suite, installed=None):
         loc_dist = self.locate()
+        ready = [installation for installation in (installed or []) if installation.version == loc_dist.version]
+        if ready:
+            return ready[0]
         target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
         try:
             makedirs(target_dir)
@@ -144,34 +147,44 @@ class RequirementState(object):
 
     def check_installed_version(self, suite, install=False):
         # install version of package if not installed
-        dist = next(
-            (installation for installation in self.installed if installation.version in self.requirement),
-            None
-        )
-        if install:
-            if dist:
-                # check if we have fresh packages on PIPY
-                latest = self.requirement.locate()
-                if pkg_resources.parse_version(latest.version) > pkg_resources.parse_version(dist.version):
-                    print_message('Upgrade from to', dist, latest)
-                    dist = self.requirement.locate_and_install(suite)
-                # Anyway use latest available dist
-                self.freezed = dist.version
-                self.installed.append(dist)
-            else:
-                dist = self.requirement.locate_and_install(suite)
-                self.freezed = dist.version
-                self.installed.append(dist)
-        if install and not self.has_correct_freeze():
+        dist = None
+        if self.has_correct_freeze():
+            dist = [installation for installation in self.installed if installation.version == self.freezed]
+            dist = dist[0] if dist else None
+            if install and not dist:
+                dist = self.install_freezed(suite)
+        if install and not dist:
+            dist = self.requirement.locate_and_install(suite, installed=self.get_installed())
+            self.freezed = dist.version
+            self.installed.append(dist)
             self.freezed = dist.version
         return dist
 
-    def reveal_requirements(self, suite, install=False):
-        dist = self.check_installed_version(suite, install=install)
+    def get_installed(self):
+        return [installation for installation in self.installed if installation.version in self.requirement]
+
+    def upgrade(self, suite):
+        # check if we have fresh packages on PIPY
+        dists = self.get_installed()
+        dist = dists[0] if dists else None
+        latest = self.requirement.locate()
+        if not dist or pkg_resources.parse_version(latest.version) > pkg_resources.parse_version(dist.version):
+            print_message('Upgrade to', latest)
+            dist = self.requirement.locate_and_install(suite)
+        # Anyway use latest available dist
+        self.freezed = dist.version
+        self.installed.append(dist)
+        return dist
+
+    def reveal_requirements(self, suite, install=False, upgrade=False):
+        if upgrade:
+            dist = self.upgrade(suite)
+        else:
+            dist = self.check_installed_version(suite, install=install)
         if not dist:
             return
         for req in dist.requires():
-            suite.adjust_with_req(CustomReq(str(req), source=self.requirement), install=install)
+            suite.adjust_with_req(CustomReq(str(req), source=self.requirement), install=install, upgrade=upgrade)
 
     def freezed_dump(self):
         main = '{}=={}'.format(self.key, self.freezed)
@@ -189,6 +202,7 @@ class RequirementState(object):
         freezed_req = CustomReq("{}=={}".format(self.key, self.freezed))
         dist = freezed_req.locate_and_install(suite)
         self.installed.append(dist)
+        return dist
 
     def activate(self):
         dist = self.freezed_dist()
@@ -213,8 +227,8 @@ class Suite(object):
     def required_states(self):
         return [state for state in self.states.values() if state.requirement]
 
-    def need_refreeze(self):
-        self.refreeze(install=False)
+    def need_freeze(self):
+        self.install(install=False)
         not_correct = not all(state.has_correct_freeze() for state in self.required_states())
         # TODO
         # unneeded = any(state.freezed for state in self.states.values() if not state.requirement)
@@ -222,18 +236,23 @@ class Suite(object):
         #     print('!!! Unneeded', [state.key for state in self.states.values() if not state.requirement])
         return not_correct #or unneeded
 
-    def adjust_with_req(self, req, install=False):
+    def adjust_with_req(self, req, install=False, upgrade=False):
         state = self.states.get(req.key)
         if not state:
             state = RequirementState(req.key, req=req)
             self.add(req.key, state)
         else:
             state.adjust_with_req(req)
-        state.reveal_requirements(self, install=install)
+        state.reveal_requirements(self, install=install, upgrade=upgrade)
 
-    def refreeze(self, install=True):
+    def install(self, install=True):
         for state in self.required_states():
             state.reveal_requirements(self, install=install)
+
+    def upgrade(self, key=None):
+        states = [self.states[key]] if key else self.required_states()
+        for state in states:
+            state.reveal_requirements(self, upgrade=True)
 
     def dump_freezed(self):
         return '\n'.join(sorted(
@@ -326,20 +345,21 @@ def create_parser_or_exit():
 
 # Commands
 def upgrade_all(*a, **kw):
+    key = kw.pop('key')
     suite = Parser(*a, **kw).create_suite()
-    suite.refreeze()
+    suite.upgrade(key=key)
+    suite.install()
     with open(suite.parser.freezed_file, 'w') as f:
         f.write(suite.dump_freezed())
 
 
 def install_all(*a, **kw):
     suite = Parser(*a, **kw).create_suite()
-    if suite.need_refreeze():
-        print_message('Freezed version is outdated')
-        sys.exit(1)
-    if suite.need_install():
+    if suite.need_freeze() or suite.need_install():
         print_message('Install some packages')
-        suite.install_freezed()
+        suite.install()
+        with open(suite.parser.freezed_file, 'w') as f:
+            f.write(suite.dump_freezed())
     else:
         print_message('Nothing to do, all packages installed')
     return suite
@@ -355,8 +375,10 @@ pundler = SourceFileLoader('pundler', op.join(op.dirname(__file__), 'pundler.py'
 parser_kw = pundler.create_parser_parameters()
 if parser_kw:
     suite = pundler.Parser(**parser_kw).create_suite()
-    if suite.need_refreeze():
+    if suite.need_freeze():
         raise Exception('%s file is outdated' % suite.parser.freezed_file)
+    if suite.need_install():
+        raise Exception('Some dependencies not installed')
 
     suite.activate_all()
     pundler.global_suite = suite
@@ -399,7 +421,7 @@ def fixate():
 def entry_points():
     parser_kw = create_parser_parameters()
     suite = Parser(**parser_kw).create_suite()
-    if suite.need_refreeze():
+    if suite.need_freeze():
         raise Exception('%s file is outdated' % suite.parser.freezed_file)
     suite.activate_all()
     entries = {}
@@ -428,7 +450,8 @@ if __name__ == '__main__':
         install_all(**create_parser_or_exit())
 
     elif sys.argv[1] == 'upgrade':
-        upgrade_all(**create_parser_or_exit())
+        key = sys.argv[2] if len(sys.argv) > 2 else None
+        upgrade_all(key=key, **create_parser_or_exit())
 
     elif sys.argv[1] == 'fixate':
         fixate()
@@ -443,6 +466,6 @@ if __name__ == '__main__':
     elif sys.argv[1] == 'edit':
         parser_kw = create_parser_parameters()
         suite = Parser(**parser_kw).create_suite()
-        if suite.need_refreeze():
+        if suite.need_freeze():
             raise Exception('%s file is outdated' % suite.parser.freezed_file)
         print(suite.states[sys.argv[2]].freezed_dist().location)

@@ -19,7 +19,8 @@ Prerequisites
 Commands
 --------
 
-`pundler [install]` will install files from freezed.txt file.
+`pundler [install]` will install files from freezed.txt file and reveal
+    new requirements if something not freezed yet.
 
 `pundler upgrade` will recreate freezed.txt from requirements.txt
 
@@ -53,13 +54,13 @@ DONE
 - tie packages to python version.
 - package scripts
 - upgrade must lookup PyPI for new version
+- In basic freeze mode if req have not freeze, then install latest package from PyPI. Else install freezed version.
+  In 'upgrade package' - upgrade selected package and dependencies, if needed.
+  In 'upgrade' - upgrade all packages.
 
 
 TODO
 ----
-- ! In basic freeze mode if req have not freeze, then install latest package from PyPI. Else install freezed version.
-    In upgrade - upgrade selected package and dependencies, if needed.
-    In upgrade_all - upgrade all packages.
 - ! write cause to freezed.txt then we can check unneeded requirements without installed packages
 - ! add vcs support
 - add environment support, aka developmment, testing

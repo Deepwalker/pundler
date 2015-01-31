@@ -1,8 +1,5 @@
-cffi==0.8.6          # cffi>=0.8 << cryptography << requirements file
 configparser==3.5.0b2 # configparser==3.5.0b2 << requirements file
-cryptography==0.7.2  # cryptography << requirements file
 django==1.7.1        # Django==1.7.1 << requirements file
-enum34==1.0.4        # enum34 << cryptography << requirements file
 flask==0.10.1        # Flask << requirements file
 itsdangerous==0.24   # itsdangerous>=0.21 << Flask << requirements file
 jinja2==2.7.3        # jinja2 << requirements file
@@ -10,10 +7,6 @@ markupsafe==0.23     # markupsafe << jinja2 << requirements file
 nomad==1.9           # nomad << requirements file
 opster==4.1          # opster>=4.0 << nomad << requirements file
 pillow==2.7.0        # Pillow << requirements file
-pyasn1==0.1.7        # pyasn1 << cryptography << requirements file
-pycparser==2.10      # pycparser << cffi>=0.8 << cryptography << requirements file
-setuptools==12.0.4   # setuptools << cryptography << requirements file
-six==1.9.0           # six>=1.4.1 << cryptography << requirements file
 termcolor==1.1.0     # termcolor << nomad << requirements file
 trafaret==0.5.3      # trafaret>0.5.2 << requirements file
-werkzeug==0.9.6      # Werkzeug>=0.7 << Flask << requirements file
+werkzeug==0.10       # Werkzeug>=0.7 << Flask << requirements file
