@@ -1,12 +1,12 @@
 Pundler
 =======
 
-Python bundler-alike alternative to virtualenv. Best play with pyenv.
+Python bundler alike alternative to virtualenv for development. Best play with pyenv.
+For deployment use virtualenv or something special.
 
 For now works only with PyPI packages.
-Git, svn and so on support planned to support a bit later.
+Git, svn and others support planned.
 
-Now this is expirement, but very cool one.
 
 Prerequisites
 -------------
@@ -36,13 +36,28 @@ Commands
 How to play with it
 -------------------
 
+Simple with usercustomize.py:
+
     git clone git@github.com:Deepwalker/pundler.git
     python pundler/pundler.py fixate
 
     cd testproject
     python -m pundler upgrade
 
-Pundler will create directory `Pundledir` and file `freezed.txt`.
+Pundler will create directory `~/.pundledir` and file `freezed.txt`.
+
+Or you can make alias pundler='python /full/path/to/pundler/pundler.py' and use it.
+And add /full/path/to/pundler to your PYTHONPATH
+But you will need to manual load dependencies in your project start script, like this:
+
+    import pundler
+    parser_kw = pundler.create_parser_parameters()
+    suite = pundler.Parser(**parser_kw).create_suite()
+    if suite.need_freeze():
+        raise Exception('%s file is outdated' % suite.parser.freezed_file)
+    if suite.need_install():
+        raise Exception('Some dependencies not installed')
+    suite.activate_all()
 
 
 DONE
@@ -63,7 +78,7 @@ TODO
 ----
 - ! write cause to freezed.txt then we can check unneeded requirements without installed packages
 - ! add vcs support
-- add environment support, aka developmment, testing
+- add environments support, aka developmment, testing
 Maybe generate freezed.txt only for pip and use more rich structure for itself?
 And put only production packages to freezed.txt, and track all, development and others in freezed.toml?
 - ? tie packages only where we need this (C extensions, py2 without __pycache__ support)
