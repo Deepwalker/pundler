@@ -125,10 +125,10 @@ class CustomReq(object):
 
 
 class RequirementState(object):
-    def __init__(self, key, req=None, freezed=None, installed=None):
+    def __init__(self, key, req=None, frozen=None, installed=None):
         self.key = key
         self.requirement = req
-        self.freezed = freezed
+        self.frozen = frozen
         self.installed = installed or []
         self.installed.sort()
         self.installed.reverse()
@@ -143,21 +143,21 @@ class RequirementState(object):
             self.requirement = req
 
     def has_correct_freeze(self):
-        return self.requirement and self.freezed and self.freezed in self.requirement
+        return self.requirement and self.frozen and self.frozen in self.requirement
 
     def check_installed_version(self, suite, install=False):
         # install version of package if not installed
         dist = None
         if self.has_correct_freeze():
-            dist = [installation for installation in self.installed if installation.version == self.freezed]
+            dist = [installation for installation in self.installed if installation.version == self.frozen]
             dist = dist[0] if dist else None
             if install and not dist:
-                dist = self.install_freezed(suite)
+                dist = self.install_frozen(suite)
         if install and not dist:
             dist = self.requirement.locate_and_install(suite, installed=self.get_installed())
-            self.freezed = dist.version
+            self.frozen = dist.version
             self.installed.append(dist)
-            self.freezed = dist.version
+            self.frozen = dist.version
         return dist
 
     def get_installed(self):
@@ -172,7 +172,7 @@ class RequirementState(object):
             print_message('Upgrade to', latest)
             dist = self.requirement.locate_and_install(suite)
         # Anyway use latest available dist
-        self.freezed = dist.version
+        self.frozen = dist.version
         self.installed.append(dist)
         return dist
 
@@ -186,26 +186,26 @@ class RequirementState(object):
         for req in dist.requires():
             suite.adjust_with_req(CustomReq(str(req), source=self.requirement), install=install, upgrade=upgrade)
 
-    def freezed_dump(self):
-        main = '{}=={}'.format(self.key, self.freezed)
+    def frozen_dump(self):
+        main = '{}=={}'.format(self.key, self.frozen)
         comment = self.requirement.why_str()
         return '{:20s} # {}'.format(main, comment)
 
-    def freezed_dist(self):
+    def frozen_dist(self):
         for dist in self.installed:
-            if dist.version == self.freezed:
+            if dist.version == self.frozen:
                 return dist
 
-    def install_freezed(self, suite):
-        if self.freezed_dist() or not self.freezed:
+    def install_frozen(self, suite):
+        if self.frozen_dist() or not self.frozen:
             return
-        freezed_req = CustomReq("{}=={}".format(self.key, self.freezed))
-        dist = freezed_req.locate_and_install(suite)
+        frozen_req = CustomReq("{}=={}".format(self.key, self.frozen))
+        dist = frozen_req.locate_and_install(suite)
         self.installed.append(dist)
         return dist
 
     def activate(self):
-        dist = self.freezed_dist()
+        dist = self.frozen_dist()
         if dist:
             dist.activate()
             pkg_resources.working_set.add_entry(dist.location)
@@ -231,7 +231,7 @@ class Suite(object):
         self.install(install=False)
         not_correct = not all(state.has_correct_freeze() for state in self.required_states())
         # TODO
-        # unneeded = any(state.freezed for state in self.states.values() if not state.requirement)
+        # unneeded = any(state.frozen for state in self.states.values() if not state.requirement)
         # if unneeded:
         #     print('!!! Unneeded', [state.key for state in self.states.values() if not state.requirement])
         return not_correct #or unneeded
@@ -254,17 +254,17 @@ class Suite(object):
         for state in states:
             state.reveal_requirements(self, upgrade=True)
 
-    def dump_freezed(self):
+    def dump_frozen(self):
         return '\n'.join(sorted(
-            state.freezed_dump() for state in self.required_states() if state.requirement
+            state.frozen_dump() for state in self.required_states() if state.requirement
         )) + '\n'
 
     def need_install(self):
-        return not all(state.freezed_dist() for state in self.states.values() if state.freezed)
+        return not all(state.frozen_dist() for state in self.states.values() if state.frozen)
 
-    def install_freezed(self):
+    def install_frozen(self):
         for state in self.states.values():
-            state.install_freezed(self)
+            state.install_frozen(self)
 
     def activate_all(self):
         for state in self.required_states():
@@ -273,13 +273,13 @@ class Suite(object):
 
 
 class Parser(object):
-    def __init__(self, directory='Pundledir', requirements_file='requirements.txt', freezed_file='freezed.txt'):
+    def __init__(self, directory='Pundledir', requirements_file='requirements.txt', frozen_file='frozen.txt'):
         self.directory = directory
         self.requirements_file = requirements_file
-        self.freezed_file = freezed_file
+        self.frozen_file = frozen_file
 
     def create_suite(self):
-        reqs, freezy, diry = self.parse_requirements(), self.parse_freezed(), self.parse_directory()
+        reqs, freezy, diry = self.parse_requirements(), self.parse_frozen(), self.parse_directory()
         state_keys = set(list(reqs.keys()) + list(freezy.keys()) + list(diry.keys()))
         suite = Suite(self)
         for key in state_keys:
@@ -300,10 +300,10 @@ class Parser(object):
             result[dist.key].append(dist)
         return result
 
-    def parse_freezed(self):
-        freezed = [line.split('==') for line in parse_file(self.freezed_file)] if op.exists(self.freezed_file) else []
-        freezed_versions = dict((name.lower(), version) for name, version in freezed)
-        return freezed_versions
+    def parse_frozen(self):
+        frozen = [line.split('==') for line in parse_file(self.frozen_file)] if op.exists(self.frozen_file) else []
+        frozen_versions = dict((name.lower(), version) for name, version in frozen)
+        return frozen_versions
 
     def parse_requirements(self):
         requirements = parse_file(self.requirements_file) if op.exists(self.requirements_file) else []
@@ -331,7 +331,7 @@ def create_parser_parameters():
     pundlerdir_base = os.environ.get('PUNDLERDIR') or op.join(op.expanduser('~'), '.pundlerdir')
     return {
         'requirements_file': op.join(base_path, 'requirements.txt'),
-        'freezed_file': op.join(base_path, 'freezed.txt'),
+        'frozen_file': op.join(base_path, 'frozen.txt'),
         'directory': op.join(pundlerdir_base, py_version_path)
     }
 
@@ -350,8 +350,8 @@ def upgrade_all(*a, **kw):
     suite = Parser(*a, **kw).create_suite()
     suite.upgrade(key=key)
     suite.install()
-    with open(suite.parser.freezed_file, 'w') as f:
-        f.write(suite.dump_freezed())
+    with open(suite.parser.frozen_file, 'w') as f:
+        f.write(suite.dump_frozen())
 
 
 def install_all(*a, **kw):
@@ -359,8 +359,8 @@ def install_all(*a, **kw):
     if suite.need_freeze() or suite.need_install():
         print_message('Install some packages')
         suite.install()
-        with open(suite.parser.freezed_file, 'w') as f:
-            f.write(suite.dump_freezed())
+        with open(suite.parser.frozen_file, 'w') as f:
+            f.write(suite.dump_frozen())
     else:
         print_message('Nothing to do, all packages installed')
     return suite
@@ -377,7 +377,7 @@ parser_kw = pundler.create_parser_parameters()
 if parser_kw:
     suite = pundler.Parser(**parser_kw).create_suite()
     if suite.need_freeze():
-        raise Exception('%s file is outdated' % suite.parser.freezed_file)
+        raise Exception('%s file is outdated' % suite.parser.frozen_file)
     if suite.need_install():
         raise Exception('Some dependencies not installed')
 
@@ -423,11 +423,11 @@ def entry_points():
     parser_kw = create_parser_parameters()
     suite = Parser(**parser_kw).create_suite()
     if suite.need_freeze():
-        raise Exception('%s file is outdated' % suite.parser.freezed_file)
+        raise Exception('%s file is outdated' % suite.parser.frozen_file)
     suite.activate_all()
     entries = {}
     for r in suite.states.values():
-        d = r.freezed_dist()
+        d = r.frozen_dist()
         if not d:
             continue
         scripts = d.get_entry_map().get('console_scripts', {})
@@ -468,5 +468,5 @@ if __name__ == '__main__':
         parser_kw = create_parser_parameters()
         suite = Parser(**parser_kw).create_suite()
         if suite.need_freeze():
-            raise Exception('%s file is outdated' % suite.parser.freezed_file)
-        print(suite.states[sys.argv[2]].freezed_dist().location)
+            raise Exception('%s file is outdated' % suite.parser.frozen_file)
+        print(suite.states[sys.argv[2]].frozen_dist().location)

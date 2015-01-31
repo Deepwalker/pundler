@@ -9,7 +9,7 @@
     run ls $PUNDLERDIR/*/trafaret-0.5.2
     [ "$status" -eq 0 ]
 
-    [ -e freezed.txt ]
+    [ -e frozen.txt ]
 }
 
 @test "Install one more package using pundler" {
