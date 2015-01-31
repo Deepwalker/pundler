@@ -445,7 +445,7 @@ def execute(interpreter, cmd, args):
     exc()
 
 
-if __name__ == '__main__':
+def main():
     # I think better have pundledir in special home user directory
     if len(sys.argv) == 1 or sys.argv[1] == 'install':
         install_all(**create_parser_or_exit())
@@ -470,3 +470,6 @@ if __name__ == '__main__':
         if suite.need_freeze():
             raise Exception('%s file is outdated' % suite.parser.frozen_file)
         print(suite.states[sys.argv[2]].frozen_dist().location)
+
+if __name__ == '__main__':
+    main()
