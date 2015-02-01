@@ -268,7 +268,8 @@ class Suite(object):
 
     def activate_all(self):
         for state in self.required_states():
-            state.activate()
+            if state.requirement:
+                state.activate()
 
 
 
@@ -359,10 +360,10 @@ def install_all(*a, **kw):
     if suite.need_freeze() or suite.need_install():
         print_message('Install some packages')
         suite.install()
-        with open(suite.parser.frozen_file, 'w') as f:
-            f.write(suite.dump_frozen())
     else:
         print_message('Nothing to do, all packages installed')
+    with open(suite.parser.frozen_file, 'w') as f:
+        f.write(suite.dump_frozen())
     return suite
 
 

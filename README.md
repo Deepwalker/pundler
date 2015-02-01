@@ -1,5 +1,9 @@
+Pundle
+======
+
+
 Modern python package management for python development
-=======================================================
+-------------------------------------------------------
 
 For development we need two things - right python interpreter
 and right packages versions.
@@ -57,7 +61,7 @@ Why I need to install Django number of my projects times.
 So I created ``Pundle``.
 
 Pundle
-======
+------
 
 Main goal of pundle is activating right packages versions on interpreter start.
 Two ways - do it magically in usercustomize.py that is in your home directory per
@@ -102,9 +106,15 @@ And you can use it with your fixated python:
     >>> arrow.__version__
     '0.5.0'
 
+Pundle get frozen version from ``frozen.txt``, and activate package from ~/.pundledir/CPython-3.4.1-default/arrow-0.5.0/
+
+    >>> arrow.__file__
+    '/Users/mighty_user/.pundledir/CPython-3.4.1-default/arrow-0.5.0/arrow/__init__.py'
+
+All packages are activating on python startup.
 
 Going deeper
-============
+------------
 
 We have additional commands for working with packages. ``upgrade``, ``entry_points``, ``exec`` and ``edit``.
 
