@@ -1,123 +1,143 @@
+Modern python package management for python development
+=======================================================
+
+For development we need two things - right python interpreter
+and right packages versions.
+
+We can get interpreter by system package manager - brew, apt, yum etc.
+You can even install some packages with system manager, but
+quickly you get to the point where repositories are not contain
+appropriate package version. And now you are often in situation
+when system has not actual interpreter version.
+
+And even worse is situation when you develop several projects
+and every project need different interpreter and indeed every
+project need its own versions of packages.
+
+Packages situation were solved with virtualenv. Its not best solution
+but it works.
+
+Interpreter situation is solved now with [pyenv](https://github.com/yyuu/pyenv)
+project. You can install as many interpreters as you need
+and all of them are separated and does not augument system
+behaviour:
+
+    > brew install pyenv
+    > pyenv install 3.4.1
+    ... installing
+    > pyenv shell 3.4.1
+    > python --version
+    Python 3.4.1
+
+This interpreter is completely independent from your system, and
+you activate it in your shell and it will switch python version
+for your according to projects ``.pyenv-version`` file.
+
+
+So, its cool, I like how pyenv works. But we all know that pyenv
+works as rbenv - pyenv for ruby.
+
+If we grab rbenv from ruby, why no to grab Bundler project?
+How it like, you have a ``Gemfile``, with packages description.
+Then you call ``bundler install`` and if you have not ``Gemfile.lock``
+it will install latest packages versions that play nice with your ``Gemfile``
+or if you have ``Gemfile.lock`` it will install packages according it.
+
+And when you start you rails application with ``bundle exec rails s``
+bundler looking into projects ``Gemfile.lock`` and loads appropriate
+packages versions.
+
+If you switch branch and your ``Gemfile.lock`` changes, packages will be switched too,
+and this is not magic - we just load versions according to file.
+
+And in my opinion this is a right thing, and something that we need in python.
+I dont like to rebuild virtualenvs, I dont understand why I need them anyway.
+Why I need to install Django number of my projects times.
+
+So I created ``Pundle``.
+
 Pundle
-=======
+======
 
-Pundle is bunder-like replacement of virtualenv for developers and works great with pyenv.
-It is not recommended to use Pundle for deployment (it was created for different purpose)
-and currently only works with PyPI packages. Git, SVN and other package sources will be added later.
+Main goal of pundle is activating right packages versions on interpreter start.
+Two ways - do it magically in usercustomize.py that is in your home directory per
+python interpreter version. Or you can put logic for activating versions to your
+manage.py or other entry points of your project.
 
-For now works only with PyPI packages.
-Git, svn and others support planned.
+I have not find any way to augument python behaviour over environment variables,
+so we need some work before we can use pundle - I dont have ideas how to have something
+like ``bundler runner`` now.
 
+Personaly I like usercustomize.py approach:
 
-Small workflow example:
+    # activate python, if still have not .pyenv-version
+    > pyenv shell 3.4.1
+    > git clone https://github.com/Deepwalker/pundler ~/.pundle
+    > python ~/.pundle/pundle.py fixate
 
-    # install it to site-packages for simplicity now (recommend use *sh alias and dedicated folder with git checkout)
-    > pip install pundle
-    # finished with virtualenv or python site-packages pollution, all packages will be in ~/.pundledir
-    # now long long time ago in one far far away project
-    > echo "Django" > requirements.txt
-    > pundle install
-    > cat frozen.txt
-    Django==1.6
-    > python manage.py runserver
-    CTRL-C
-    ... long work with project
+Fixate command will create usercusomize.py for current python interpreter. You will need
+fixate pundle for every python version you want to use.
 
-    # You want a refactoring and migrate to new framwork version.
-    # Your project has some incompatibility bugs now
-    > git checkout -b new_django_version
-    > pundle upgrade
-    > cat frozen.txt
-    Django==1.7.4
-    ... work hard for sometime
+Anyway, we are ready to install packages from your requirements.txt:
 
-    # Now you have alarm on production branch
-    > git commit -a -m 'Fixed first part of bugs with last django'
-    > git checkout master
-    > python manage.py runserver
+    > python -m pundle install
+    ... long work here
 
-Feel it - you need not to remove virtualenv, or switch it, or anything else. Pundle looking into
-frozen.txt and activate that versions of packages that you need right now. You switch branch -
-package version switched with you.
+And you will get ``frozen.txt`` file with frozen packages versions and some information:
 
-Pundle not about tracking requirements and filling frozen.txt with double-equals signs - its about
-importing right version of package in right place.
+    alembic==0.7.4       # alembic << requirements file
+    arrow==0.5.0         # arrow << requirements file
+    awesome-slugify==1.6 # awesome-slugify << requirements file
+    babel==1.3           # Babel>=1.0 << Flask-Babel << requirements file
+    dawg-python==0.7.1   # dawg-python>=0.7 << pymorphy2 << requirements file
+    docopt==0.6.2        # docopt>=0.6 << pymorphy2 << requirements file
 
 
+Now your packages are install to the ``~/.pundlerdir/CPython-3.4.1`` directory.
+And you can use it with your fixated python:
 
-Prerequisites
--------------
-
-- I recommend using pyenv
-- requires setuptools
-- requires pip
-
-
-Commands
---------
-
-`pundle [install]` will install files from frozen.txt file and reveal
-    new requirements if something is not frozen yet.
-
-`pundle upgrade` will recreate frozen.txt from requirements.txt.
-
-`pundle fixate` installs site customization for current python.
-
-`pundle exec cmd [args]` executes entry point from one of the installed packages.
-
-`pundle entry_points` prints entry points from all packages.
-
-`pundle edit [package]` returns path to package directory.
+    > python
+    ... bla bla bla 3.4.1
+    >>> import arrow
+    >>> arrow.__version__
+    '0.5.0'
 
 
-How to play with it
--------------------
+Going deeper
+============
 
-Simple with usercustomize.py:
+We have additional commands for working with packages. ``upgrade``, ``entry_points``, ``exec`` and ``edit``.
 
-    git clone git@github.com:Deepwalker/pundler.git
-    python pundler/pundle.py fixate
+If you frozen versions of package is old and you want to update it, you need ``upgrade`` command:
 
-    cd testproject
-    python -m pundle upgrade
+    > python -m pundle upgrade django
 
-Pundle will create directory `~/.pundledir` and file `frozen.txt`.
+Or you can update all packages:
 
-Or you can make ``alias pundle='python /full/path/to/pundle/pundle.py'`` and use it.
-And add ``/full/path/to/pundle`` to your ``PYTHONPATH``.
-But you will need to manual load dependencies in your project start script, like this:
+    > python -m pundle upgrade
 
-    import pundle
-    parser_kw = pundle.create_parser_parameters()
-    suite = pundle.Parser(**parser_kw).create_suite()
-    if suite.need_freeze():
-        raise Exception('%s file is outdated' % suite.parser.frozen_file)
-    if suite.need_install():
-        raise Exception('Some dependencies not installed')
-    suite.activate_all()
+``entry_points`` will show you all commands that your packages offer you:
 
+    > python -m pundle entry_points
+    nomad (nomad 1.9)
+    gunicorn_paster (gunicorn 19.2.0)
+    gunicorn_django (gunicorn 19.2.0)
+    mako-render (Mako 1.0.1)
+    webassets (webassets 0.10.1)
+    alembic (alembic 0.7.4)
+    pyflakes (pyflakes 0.8.1)
+    pyscss (pyScss 1.3.4)
+    pybabel (Babel 1.3)
+    gunicorn (gunicorn 19.2.0)
 
-DONE
-----
-- install according to frozen.txt
-- on update rewrite frozen.txt
-- on launch check if frozen.txt is in touch with requirements.txt
-- search through hierarchy upward
-- tie packages to python version.
-- package scripts
-- upgrade must lookup PyPI for new version
-- in install mode if requirement is not frozen, then install latest package from PyPI. Else install frozen version.
-  in 'upgrade package' - upgrade selected package and dependencies, if needed.
-  in 'upgrade' - upgrade all packages.
+And of course we have command to start this command:
 
+    > python -m pundle exec pyflakes start.py
+    start.py:2: 'url_for' imported but unused
 
-TODO
-----
-- ! write source of requirement (requirements.txt or other package) to frozen.txt then we can check unneeded requirements without installed packages
-- ! add vcs support
-- add environments support, aka development, testing.
-Maybe generate frozen.txt only for pip and use more rich structure for itself?
-And put only production packages to frozen.txt, and track all, development and others in frozen.toml?
-- ? tie packages only where we need this (C extensions, py2 without __pycache__ support)
-- ? bundle distlib (now using one from pip)
-- ? bundle pkg_resources (now using one from setuptools)
+Last command is ``edit`` - it will help you find fast where the package code is:
+
+    > python -m pundle edit arrow
+    /Users/main_universe_user/.pundledir/CPython-3.4.1-default/arrow-0.5.0
+
+Use it, feel it, like it, share it. Commit, pull request.
