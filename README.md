@@ -39,7 +39,7 @@ for your according to projects ``.pyenv-version`` file.
 
 
 So, its cool, I like how pyenv works. But we all know that pyenv
-works as rbenv - pyenv for ruby.
+works similar to how rbenv works for ruby.
 
 If we grab rbenv from ruby, why no to grab Bundler project?
 How it like, you have a ``Gemfile``, with packages description.
