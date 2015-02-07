@@ -1,4 +1,4 @@
-from __future__ import print_function, unicode_literals
+from __future__ import print_function#, unicode_literals
 import re
 try:
     from urllib.parse import urlparse
@@ -206,11 +206,23 @@ class RequirementState(object):
 
     def activate(self):
         dist = self.frozen_dist()
-        if dist:
-            dist.activate()
-            pkg_resources.working_set.add_entry(dist.location)
-        else:
+        if not dist:
             raise Exception('Distribution is not installed %s' % self.key)
+        dist.activate()
+        pkg_resources.working_set.add_entry(dist.location)
+        # find end execute pth
+        for filename in os.listdir(dist.location):
+            if not filename.endswith('pth'):
+                continue
+            try:
+                for line in open(op.join(dist.location, filename)):
+                    if line.startswith('import '):
+                        sitedir = dist.location
+                        # print('Exec', line.strip())
+                        exec(line.strip())
+            except Exception as e:
+                print('Erroneous pth file %r' % op.join(dist.location, filename))
+                print(e)
 
 
 class Suite(object):
