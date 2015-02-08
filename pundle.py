@@ -379,16 +379,17 @@ def install_all(*a, **kw):
     return suite
 
 
-
 def activate():
     parser_kw = create_parser_parameters()
-    if parser_kw:
-        suite = Parser(**parser_kw).create_suite()
-        if suite.need_freeze():
-            raise Exception('%s file is outdated' % suite.parser.frozen_file)
-        if suite.need_install():
-            raise Exception('Some dependencies not installed')
-        suite.activate_all()
+    if not parser_kw:
+        raise Exception('Can`t create parser parameters')
+    suite = Parser(**parser_kw).create_suite()
+    if suite.need_freeze():
+        raise Exception('%s file is outdated' % suite.parser.frozen_file)
+    if suite.need_install():
+        raise Exception('Some dependencies not installed')
+    suite.activate_all()
+    return suite
 
 
 FIXATE_TEMPLATE = """
@@ -396,7 +397,6 @@ FIXATE_TEMPLATE = """
 import pundle; pundle.activate()
 # pundle user customization end
 """
-
 
 def fixate():
     print_message('Fixate')
@@ -431,11 +431,7 @@ def fixate():
 
 
 def entry_points():
-    parser_kw = create_parser_parameters()
-    suite = Parser(**parser_kw).create_suite()
-    if suite.need_freeze():
-        raise Exception('%s file is outdated' % suite.parser.frozen_file)
-    suite.activate_all()
+    suite = activate()
     entries = {}
     for r in suite.states.values():
         d = r.frozen_dist()
@@ -455,9 +451,7 @@ def execute(interpreter, cmd, args):
     sys.argv = [cmd] + args
     exc()
 
-
 def main():
-    # I think better have pundledir in special home user directory
     if len(sys.argv) == 1 or sys.argv[1] == 'install':
         install_all(**create_parser_or_exit())
 
@@ -484,6 +478,13 @@ def main():
 
     elif sys.argv[1] == 'console':
         import code; code.InteractiveConsole(locals=globals()).interact();
+
+    elif sys.argv[1] == 'run':
+        activate()
+        sys.path.insert(0, '')
+        script = sys.argv[2]
+        sys.argv = [sys.argv[0]] + sys.argv[3:]
+        exec(open(script).read())
 
 if __name__ == '__main__':
     main()

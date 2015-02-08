@@ -64,25 +64,19 @@ Pundle
 ------
 
 Main goal of pundle is activating right packages versions on interpreter start.
-Two ways - do it magically in usercustomize.py that is in your home directory per
-python interpreter version. Or you can put logic for activating versions to your
-manage.py or other entry points of your project.
+To activate machinery we have several ways:
+    - use ``fixate`` that will put activate code to the usercustomize.py in user directory
+    - use ``python -m pundle run script.py`` to run script with acitvated environment
+    - put activate code ``import pundle; pundle.activate()`` to your ``manage.py`` or other project start point.
 
-I have not find any way to augument python behaviour over environment variables,
-so we need some work before we can use pundle - I dont have ideas how to have something
-like ``bundler runner`` now.
 
-Personaly I like usercustomize.py approach:
+Personaly I prefer ``run``:
 
     # activate python, if still have not .pyenv-version
     > pyenv shell 3.4.1
-    > git clone https://github.com/Deepwalker/pundler ~/.pundle
-    > python ~/.pundle/pundle.py fixate
+    > python -m pip install pundle
 
-Fixate command will create usercusomize.py for current python interpreter. You will need
-fixate pundle for every python version you want to use.
-
-Anyway, we are ready to install packages from your requirements.txt:
+And we are ready to install packages from your requirements.txt:
 
     > python -m pundle install
     ... long work here
@@ -100,7 +94,7 @@ And you will get ``frozen.txt`` file with frozen packages versions and some info
 Now your packages are install to the ``~/.pundlerdir/CPython-3.4.1`` directory.
 And you can use it with your fixated python:
 
-    > python
+    > python -m pundle console
     ... bla bla bla 3.4.1
     >>> import arrow
     >>> arrow.__version__
@@ -111,7 +105,10 @@ Pundle get frozen version from ``frozen.txt``, and activate package from ~/.pund
     >>> arrow.__file__
     '/Users/mighty_user/.pundledir/CPython-3.4.1-default/arrow-0.5.0/arrow/__init__.py'
 
-All packages are activating on python startup.
+And execute fof project:
+
+    > python -m pundle run manage.py runserver
+
 
 Going deeper
 ------------
