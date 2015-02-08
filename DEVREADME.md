@@ -87,15 +87,7 @@ Or you can make ``alias pundle='python /full/path/to/pundle/pundle.py'`` and use
 And add ``/full/path/to/pundle`` to your ``PYTHONPATH``.
 But you will need to manual load dependencies in your project start script, like this:
 
-    import pundle
-    parser_kw = pundle.create_parser_parameters()
-    suite = pundle.Parser(**parser_kw).create_suite()
-    if suite.need_freeze():
-        raise Exception('%s file is outdated' % suite.parser.frozen_file)
-    if suite.need_install():
-        raise Exception('Some dependencies not installed')
-    suite.activate_all()
-
+    import pundle; pundle.activate()
 
 DONE
 ----

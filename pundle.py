@@ -379,23 +379,21 @@ def install_all(*a, **kw):
     return suite
 
 
+
+def activate():
+    parser_kw = create_parser_parameters()
+    if parser_kw:
+        suite = Parser(**parser_kw).create_suite()
+        if suite.need_freeze():
+            raise Exception('%s file is outdated' % suite.parser.frozen_file)
+        if suite.need_install():
+            raise Exception('Some dependencies not installed')
+        suite.activate_all()
+
+
 FIXATE_TEMPLATE = """
 # pundle user customization start
-import os.path as op
-from importlib.machinery import SourceFileLoader
-pundle = SourceFileLoader('pundle', op.join(op.dirname(__file__), 'pundle.py')).load_module()
-
-
-parser_kw = pundle.create_parser_parameters()
-if parser_kw:
-    suite = pundle.Parser(**parser_kw).create_suite()
-    if suite.need_freeze():
-        raise Exception('%s file is outdated' % suite.parser.frozen_file)
-    if suite.need_install():
-        raise Exception('Some dependencies not installed')
-
-    suite.activate_all()
-    pundle.global_suite = suite
+import pundle; pundle.activate()
 # pundle user customization end
 """
 
@@ -483,6 +481,9 @@ def main():
         if suite.need_freeze():
             raise Exception('%s file is outdated' % suite.parser.frozen_file)
         print(suite.states[sys.argv[2]].frozen_dist().location)
+
+    elif sys.argv[1] == 'console':
+        import code; code.InteractiveConsole(locals=globals()).interact();
 
 if __name__ == '__main__':
     main()
