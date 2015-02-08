@@ -1,6 +1,8 @@
 Pundle
 =======
 
+![Pundle](/pundle.png?raw=true "Pundle")
+
 Pundle is bunder-like replacement of virtualenv for developers and works great with pyenv.
 It is not recommended to use Pundle for deployment (it was created for different purpose)
 and currently only works with PyPI packages. Git, SVN and other package sources will be added later.
