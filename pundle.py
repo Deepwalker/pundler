@@ -477,6 +477,11 @@ def main():
         print(suite.states[sys.argv[2]].frozen_dist().location)
 
     elif sys.argv[1] == 'console':
+        activate()
+        import readline
+        import rlcompleter
+        readline.set_completer(rlcompleter.Completer(globals()).complete)
+        readline.parse_and_bind("tab: complete")
         import code; code.InteractiveConsole(locals=globals()).interact();
 
     elif sys.argv[1] == 'run':
