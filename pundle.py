@@ -483,8 +483,8 @@ def main():
         activate()
         sys.path.insert(0, '')
         script = sys.argv[2]
-        sys.argv = [sys.argv[0]] + sys.argv[3:]
-        exec(open(script).read())
+        sys.argv = [sys.argv[2]] + sys.argv[3:]
+        exec(open(script).read(), {'__file__': script, '__name__': '__main__'})
 
 if __name__ == '__main__':
     main()
