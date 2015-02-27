@@ -451,6 +451,25 @@ def execute(interpreter, cmd, args):
     sys.argv = [cmd] + args
     exc()
 
+
+def run_console():
+    activate()
+    import readline
+    import rlcompleter
+    import atexit
+
+    history_path = os.path.expanduser("~/.python_history")
+    def save_history(history_path=history_path):
+        readline.write_history_file(history_path)
+    if os.path.exists(history_path):
+        readline.read_history_file(history_path)
+    atexit.register(save_history)
+
+    readline.set_completer(rlcompleter.Completer(globals()).complete)
+    readline.parse_and_bind("tab: complete")
+    import code; code.InteractiveConsole(locals=globals()).interact();
+
+
 def main():
     if len(sys.argv) == 1 or sys.argv[1] == 'install':
         install_all(**create_parser_or_exit())
@@ -477,12 +496,7 @@ def main():
         print(suite.states[sys.argv[2]].frozen_dist().location)
 
     elif sys.argv[1] == 'console':
-        activate()
-        import readline
-        import rlcompleter
-        readline.set_completer(rlcompleter.Completer(globals()).complete)
-        readline.parse_and_bind("tab: complete")
-        import code; code.InteractiveConsole(locals=globals()).interact();
+        run_console()
 
     elif sys.argv[1] == 'run':
         activate()
@@ -490,6 +504,17 @@ def main():
         script = sys.argv[2]
         sys.argv = [sys.argv[2]] + sys.argv[3:]
         exec(open(script).read(), {'__file__': script, '__name__': '__main__'})
+
+    elif sys.argv[1] == 'env':
+        activate()
+        aug_env = os.environ.copy()
+        aug_env['PYTHONPATH'] = ':'.join(sys.path)
+        print(sys.argv)
+        subprocess.call(sys.argv[2:], env=aug_env)
+    else:
+        print('You need to provide correct command')
+        sys.exit(1)
+
 
 if __name__ == '__main__':
     main()

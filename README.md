@@ -105,7 +105,7 @@ Pundle get frozen version from ``frozen.txt``, and activate package from ~/.pund
     >>> arrow.__file__
     '/Users/mighty_user/.pundledir/CPython-3.4.1-default/arrow-0.5.0/arrow/__init__.py'
 
-And execute fof project:
+And execute for project:
 
     > python -m pundle run manage.py runserver
 
