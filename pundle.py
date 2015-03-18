@@ -399,6 +399,7 @@ import pundle; pundle.activate()
 """
 
 def fixate():
+    "puts activation code to usercostumize.py for user"
     print_message('Fixate')
     import site
     userdir = site.getusersitepackages()
@@ -453,10 +454,12 @@ def execute(interpreter, cmd, args):
 
 
 def run_console():
-    activate()
+    "starts python console with activated pundle environment"
     import readline
     import rlcompleter
     import atexit
+    import code
+    activate()
 
     history_path = os.path.expanduser("~/.python_history")
     def save_history(history_path=history_path):
@@ -467,54 +470,112 @@ def run_console():
 
     readline.set_completer(rlcompleter.Completer(globals()).complete)
     readline.parse_and_bind("tab: complete")
-    import code; code.InteractiveConsole(locals=globals()).interact();
+    code.InteractiveConsole(locals=globals()).interact()
 
 
-def main():
-    if len(sys.argv) == 1 or sys.argv[1] == 'install':
-        install_all(**create_parser_or_exit())
+class CmdRegister:
+    commands = {}
+    ordered = []
 
-    elif sys.argv[1] == 'upgrade':
-        key = sys.argv[2] if len(sys.argv) > 2 else None
-        upgrade_all(key=key, **create_parser_or_exit())
+    @classmethod
+    def cmdline(cls, *cmd_aliases):
+        def wrap(func):
+            for alias in cmd_aliases:
+                cls.commands[alias] = func
+                cls.ordered.append(alias)
+        return wrap
 
-    elif sys.argv[1] == 'fixate':
-        fixate()
+    @classmethod
+    def help(cls):
+        for alias in cls.ordered:
+            if not alias:
+                continue
+            print("{:15s} {}".format(alias, cls.commands[alias].__doc__))
 
-    elif sys.argv[1] == 'exec':
-        execute(sys.argv[0], sys.argv[2], sys.argv[3:])
+    @classmethod
+    def main(cls):
+        alias = '' if len(sys.argv) == 1 else sys.argv[1]
+        if alias == 'help':
+            cls.help()
+            return
+        if not alias in cls.commands:
+            print('Unknown command\nTry this:')
+            cls.help()
+            sys.exit(1)
+        cls.commands[alias]()
 
-    elif sys.argv[1] == 'entry_points':
-        for entry, package in entry_points().items():
-            print('%s (%s)' % (entry, package))
 
-    elif sys.argv[1] == 'edit':
-        parser_kw = create_parser_parameters()
-        suite = Parser(**parser_kw).create_suite()
-        if suite.need_freeze():
-            raise Exception('%s file is outdated' % suite.parser.frozen_file)
-        print(suite.states[sys.argv[2]].frozen_dist().location)
+@CmdRegister.cmdline('', 'install')
+def cmd_install():
+    "Install packages by frozen.txt and resolve ones that was not frozen"
+    install_all(**create_parser_or_exit())
 
-    elif sys.argv[1] == 'console':
-        run_console()
 
-    elif sys.argv[1] == 'run':
-        activate()
-        sys.path.insert(0, '')
-        script = sys.argv[2]
-        sys.argv = [sys.argv[2]] + sys.argv[3:]
-        exec(open(script).read(), {'__file__': script, '__name__': '__main__'})
+@CmdRegister.cmdline('upgrade')
+def cmd_upgrade():
+    "[package] if package provided will upgrade it and dependencies or all packages from PyPI"
+    key = sys.argv[2] if len(sys.argv) > 2 else None
+    upgrade_all(key=key, **create_parser_or_exit())
 
-    elif sys.argv[1] == 'env':
-        activate()
-        aug_env = os.environ.copy()
-        aug_env['PYTHONPATH'] = ':'.join(sys.path)
-        print(sys.argv)
-        subprocess.call(sys.argv[2:], env=aug_env)
-    else:
-        print('You need to provide correct command')
-        sys.exit(1)
+
+CmdRegister.cmdline('fixate')(fixate)
+
+
+@CmdRegister.cmdline('exec')
+def cmd_exec():
+    "executes setuptools entry"
+    execute(sys.argv[0], sys.argv[2], sys.argv[3:])
+
+
+@CmdRegister.cmdline('entry_points')
+def cmd_entry_points():
+    "prints available setuptools entries"
+    for entry, package in entry_points().items():
+        print('%s (%s)' % (entry, package))
+
+
+@CmdRegister.cmdline('edit')
+def cmd_edit():
+    "prints directory path to package"
+    parser_kw = create_parser_parameters()
+    suite = Parser(**parser_kw).create_suite()
+    if suite.need_freeze():
+        raise Exception('%s file is outdated' % suite.parser.frozen_file)
+    print(suite.states[sys.argv[2]].frozen_dist().location)
+
+
+CmdRegister.cmdline('console')(run_console)
+
+
+@CmdRegister.cmdline('run')
+def cmd_run():
+    "executes given script"
+    activate()
+    sys.path.insert(0, '')
+    script = sys.argv[2]
+    sys.argv = [sys.argv[2]] + sys.argv[3:]
+    exec(open(script).read(), {'__file__': script, '__name__': '__main__'})
+
+
+@CmdRegister.cmdline('module')
+def cmd_module():
+    "executes module like `python -m`"
+    activate()
+    sys.path.insert(0, '')
+    script = sys.argv[2]
+    sys.argv = [sys.argv[2]] + sys.argv[3:]
+    __import__(script + '.__main__')
+
+
+@CmdRegister.cmdline('env')
+def cmd_env():
+    "populates PYTHONPATH with packages paths and executes command line in subprocess"
+    activate()
+    aug_env = os.environ.copy()
+    aug_env['PYTHONPATH'] = ':'.join(sys.path)
+    subprocess.call(sys.argv[2:], env=aug_env)
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    CmdRegister.main()
