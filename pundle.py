@@ -31,6 +31,10 @@ def print_message(*a, **kw):
     print(*a, **kw)
 
 
+class PundleException(Exception):
+    pass
+
+
 def python_version_string():
     version_info = sys.pypy_version_info if platform.python_implementation() == 'PyPy' else sys.version_info
     version_string = '{v.major}.{v.minor}.{v.micro}'.format(v=version_info)
@@ -60,7 +64,7 @@ class CustomReq(object):
         else:
             parsed_url = urlparse(line)
             if not (parsed_url.fragment and parsed_url.fragment.startswith('egg=')):
-                raise Exception('Bad url %r' % line)
+                raise PundleException('Bad url %r' % line)
             self.egg = parsed_url.fragment.split('=', 1)[1]
             self.req = None
         self.source = source
@@ -80,7 +84,7 @@ class CustomReq(object):
 
     def adjust_with_req(self, req):
         if not self.req:
-            raise Exception('VCS')
+            raise PundleException('VCS')
         versions = ','.join(''.join(t) for t in set(self.req.specs + req.req.specs))
         self.requirement = pkg_resources.Requirement.parse('{} {}'.format(
             self.req.project_name, versions
@@ -94,6 +98,8 @@ class CustomReq(object):
         dist = locate(str(self.req))
         if not dist:
             dist = locate(str(self.req), prereleases=True)
+        if not dist:
+            raise PundleException('%s can not be located' % self.req)
         return dist
 
     def locate_and_install(self, suite, installed=None):
@@ -120,7 +126,7 @@ class CustomReq(object):
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
         if res != 0:
-            raise Exception('%s was not installed due error' % loc_dist.name)
+            raise PundleException('%s was not installed due error' % loc_dist.name)
         return next(iter(pkg_resources.find_distributions(target_dir, True)), None)
 
 
@@ -207,7 +213,7 @@ class RequirementState(object):
     def activate(self):
         dist = self.frozen_dist()
         if not dist:
-            raise Exception('Distribution is not installed %s' % self.key)
+            raise PundleException('Distribution is not installed %s' % self.key)
         dist.activate()
         pkg_resources.working_set.add_entry(dist.location)
         # find end execute pth
@@ -361,6 +367,7 @@ def create_parser_or_exit():
 def upgrade_all(*a, **kw):
     key = kw.pop('key')
     suite = Parser(*a, **kw).create_suite()
+    suite.need_freeze()
     suite.upgrade(key=key)
     suite.install()
     with open(suite.parser.frozen_file, 'w') as f:
@@ -382,12 +389,12 @@ def install_all(*a, **kw):
 def activate():
     parser_kw = create_parser_parameters()
     if not parser_kw:
-        raise Exception('Can`t create parser parameters')
+        raise PundleException('Can`t create parser parameters')
     suite = Parser(**parser_kw).create_suite()
     if suite.need_freeze():
-        raise Exception('%s file is outdated' % suite.parser.frozen_file)
+        raise PundleException('%s file is outdated' % suite.parser.frozen_file)
     if suite.need_install():
-        raise Exception('Some dependencies not installed')
+        raise PundleException('Some dependencies not installed')
     suite.activate_all()
     return suite
 
@@ -404,7 +411,7 @@ def fixate():
     import site
     userdir = site.getusersitepackages()
     if not userdir:
-        raise Exception('Can`t fixate due user have not site package directory')
+        raise PundleException('Can`t fixate due user have not site package directory')
     try:
         makedirs(userdir)
     except OSError:
@@ -540,7 +547,7 @@ def cmd_edit():
     parser_kw = create_parser_parameters()
     suite = Parser(**parser_kw).create_suite()
     if suite.need_freeze():
-        raise Exception('%s file is outdated' % suite.parser.frozen_file)
+        raise PundleException('%s file is outdated' % suite.parser.frozen_file)
     print(suite.states[sys.argv[2]].frozen_dist().location)
 
 
@@ -561,10 +568,11 @@ def cmd_run():
 def cmd_module():
     "executes module like `python -m`"
     activate()
+    import runpy
     sys.path.insert(0, '')
-    script = sys.argv[2]
+    module = sys.argv[2]
     sys.argv = [sys.argv[2]] + sys.argv[3:]
-    __import__(script + '.__main__')
+    runpy.run_module(module)
 
 
 @CmdRegister.cmdline('env')
