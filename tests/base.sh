@@ -31,9 +31,9 @@
     echo -e "trafaret==0.5.2\nnomad" > requirements.txt
     python ../pundle.py upgrade
     [ "$?" -eq 0 ]
-    run ls $PUNDLEDIR/*/nomad-1.10
+    run ls $PUNDLEDIR/*/nomad-1.11
     [ "$status" -eq 0 ]
-    [[ "$(cat frozen.txt)" =~ "nomad==1.10" ]]
+    [[ "$(cat frozen.txt)" =~ "nomad==1.11" ]]
 }
 
 @test "Check entry point for nomad" {
@@ -44,7 +44,7 @@
     run python ../pundle.py entry_points
     [ "$status" -eq 0 ]
     [[ "$lines{0}" =~ "nomad" ]]
-    [[ "$lines{0}" =~ "1.10" ]]
+    [[ "$lines{0}" =~ "1.11" ]]
 }
 
 @test "Check import frozen package in python" {

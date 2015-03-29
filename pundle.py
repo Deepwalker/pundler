@@ -292,10 +292,11 @@ class Suite(object):
 
 
 class Parser(object):
-    def __init__(self, directory='Pundledir', requirements_file='requirements.txt', frozen_file='frozen.txt'):
+    def __init__(self, directory='Pundledir', requirements_file=None, frozen_file='frozen.txt', package=None):
         self.directory = directory
         self.requirements_file = requirements_file
         self.frozen_file = frozen_file
+        self.package = package
 
     def create_suite(self):
         reqs, freezy, diry = self.parse_requirements(), self.parse_frozen(), self.parse_directory()
@@ -325,7 +326,11 @@ class Parser(object):
         return frozen_versions
 
     def parse_requirements(self):
-        requirements = parse_file(self.requirements_file) if op.exists(self.requirements_file) else []
+        if self.requirements_file:
+            requirements = parse_file(self.requirements_file)
+        else:
+            pkg = next(pkg_resources.find_distributions(self.package), None)
+            return dict((req.key, CustomReq(str(req), 'setup.py')) for req in pkg.requires())
         return dict((req.key, req) for req in (CustomReq(line, 'requirements file') for line in requirements))
 
 
@@ -334,7 +339,7 @@ def search_files_upward(start_path=None):
     "Search for requirements.txt upward"
     if not start_path:
         start_path = op.abspath(op.curdir)
-    if op.exists(op.join(start_path, 'requirements.txt')):
+    if op.exists(op.join(start_path, 'requirements.txt')) or op.exists(op.join(start_path, 'setup.py')):
         return start_path
     up_path = op.abspath(op.join(start_path, '..'))
     if op.samefile(start_path, up_path):
@@ -348,11 +353,17 @@ def create_parser_parameters():
         return None
     py_version_path = python_version_string()
     pundledir_base = os.environ.get('PUNDLEDIR') or op.join(op.expanduser('~'), '.pundledir')
-    return {
-        'requirements_file': op.join(base_path, 'requirements.txt'),
+    params = {
         'frozen_file': op.join(base_path, 'frozen.txt'),
         'directory': op.join(pundledir_base, py_version_path)
     }
+    if op.exists(op.join(base_path, 'requirements.txt')):
+        params['requirements_file'] = op.join(base_path, 'requirements.txt')
+    elif op.exists(op.join(base_path, 'setup.py')):
+        params['package'] = base_path
+    else:
+        return
+    return params
 
 
 def create_parser_or_exit():
