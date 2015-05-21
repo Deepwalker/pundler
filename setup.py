@@ -25,7 +25,7 @@ setupconf = dict(
     py_modules=['pundle'],
     entry_points=dict(
         console_scripts=[
-            'pundle = pundle:main'
+            'pundle = pundle:CmdRegister.main'
         ]
     ),
     classifiers=[
