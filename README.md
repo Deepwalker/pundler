@@ -1,6 +1,12 @@
 Pundle
 ======
 
+New
+---
+
+- Added VCS support for urls like `git+https://github.com/mitsuhiko/jinja2.git@85820fceb83569df62fa5e6b9b0f2f76b7c6a3cf#egg=jinja2-2.8.0`. Push exactly like this formatted str to requirements.txt
+- Added initial support for setup.py requirements. Helpfull for package development.
+
 
 Modern python package management for python development
 -------------------------------------------------------

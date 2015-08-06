@@ -1,10 +1,12 @@
 from __future__ import print_function#, unicode_literals
 import re
 try:
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, parse_qsl
 except ImportError:
     import urlparse
+    parse_qsl = urlparse.parse_qsl
 from collections import defaultdict
+from base64 import b64encode, b64decode
 import platform
 import os.path as op
 import os
@@ -18,9 +20,9 @@ import pkg_resources
 
 # TODO bundle own version of distlib. Perhaps
 try:
-    from pip._vendor.distlib.locators import locate
+    from pip._vendor.distlib import locators
 except ImportError:
-    from pip.vendor.distlib.locators import locate
+    from pip.vendor.distlib import locators
 
 try:
     str_types = (basestring,)
@@ -54,23 +56,59 @@ def test_vcs(req):
     return '+' in req and req.index('+') == 3
 
 
+def parse_vcs_requirement(req):
+    if not '+' in req:
+        return None
+    vcs, url = req.split('+', 1)
+    if not vcs in ('git', 'svn', 'hg'):
+        return None
+    parsed_url = urlparse(url)
+    parsed = dict(parse_qsl(parsed_url.fragment))
+    if not 'egg' in parsed:
+        return None
+    return parsed['egg'].split('-')[0], req
+
+
+class VCSDist(object):
+    def __init__(self, directory):
+        self.dir = directory
+        name = op.split(directory)[-1]
+        self.key, encoded = name.split('+', 1)
+        self.line = b64decode(encoded).decode('utf-8')
+        self.version = self.line
+        self.pkg_resource = next(iter(pkg_resources.find_distributions(self.dir, True)), None)
+        self.location = self.pkg_resource.location
+
+    def requires(self):
+        return self.pkg_resource.requires()
+
+    def activate(self):
+        return self.pkg_resource.activate()
+
 class CustomReq(object):
     def __init__(self, line, source=None):
         self.line = line
+        self.egg = None
         if isinstance(line, pkg_resources.Requirement):
             self.req = line
         elif not test_vcs(line):
             self.req = pkg_resources.Requirement.parse(line)
         else:
-            parsed_url = urlparse(line)
-            if not (parsed_url.fragment and parsed_url.fragment.startswith('egg=')):
+            res = parse_vcs_requirement(line)
+            if not res:
                 raise PundleException('Bad url %r' % line)
-            self.egg = parsed_url.fragment.split('=', 1)[1]
+            key, version = res
+            self.egg = key
             self.req = None
         self.source = source
 
     def __contains__(self, something):
-        return (something in self.req) if self.req else False
+        if self.req:
+            return (something in self.req)
+        elif self.egg:
+            return something == self.line
+        else:
+            return False
 
     def __repr__(self):
         return '<CustomReq %r>' % self.__dict__
@@ -94,20 +132,26 @@ class CustomReq(object):
     def key(self):
         return self.req.key if self.req else self.egg
 
-    def locate(self):
-        dist = locate(str(self.req))
+    def locate(self, suite):
+        dist = suite.locate(str(self.req))
         if not dist:
-            dist = locate(str(self.req), prereleases=True)
+            dist = suite.locate(str(self.req), prereleases=True)
         if not dist:
             raise PundleException('%s can not be located' % self.req)
         return dist
 
     def locate_and_install(self, suite, installed=None):
-        loc_dist = self.locate()
-        ready = [installation for installation in (installed or []) if installation.version == loc_dist.version]
-        if ready:
-            return ready[0]
-        target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
+        if self.egg:
+            key = b64encode(self.line.encode('utf-8')).decode()
+            target_dir = op.join(suite.parser.directory, '{}+{}'.format(self.egg, key))
+            target_req = self.line
+        else:
+            loc_dist = self.locate(suite)
+            ready = [installation for installation in (installed or []) if installation.version == loc_dist.version]
+            if ready:
+                return ready[0]
+            target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
+            target_req = '%s==%s'%(loc_dist.name, loc_dist.version)
         try:
             makedirs(target_dir)
         except OSError:
@@ -119,14 +163,14 @@ class CustomReq(object):
                 '--no-deps',
                 '--install-option=%s' % ('--install-scripts=%s' % op.join(tmp_dir, '.scripts')),
                 '-t', tmp_dir,
-                '%s==%s'%(loc_dist.name, loc_dist.version)
+                target_req
             ])
             for item in os.listdir(tmp_dir):
                 shutil.move(op.join(tmp_dir, item), op.join(target_dir, item))
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
         if res != 0:
-            raise PundleException('%s was not installed due error' % loc_dist.name)
+            raise PundleException('%s was not installed due error' % (self.egg or loc_dist.name))
         return next(iter(pkg_resources.find_distributions(target_dir, True)), None)
 
 
@@ -173,7 +217,7 @@ class RequirementState(object):
         # check if we have fresh packages on PIPY
         dists = self.get_installed()
         dist = dists[0] if dists else None
-        latest = self.requirement.locate()
+        latest = self.requirement.locate(suite)
         if not dist or pkg_resources.parse_version(latest.version) > pkg_resources.parse_version(dist.version):
             print_message('Upgrade to', latest)
             dist = self.requirement.locate_and_install(suite)
@@ -193,6 +237,8 @@ class RequirementState(object):
             suite.adjust_with_req(CustomReq(str(req), source=self.requirement), install=install, upgrade=upgrade)
 
     def frozen_dump(self):
+        if self.requirement.egg:
+            return self.requirement.line
         main = '{}=={}'.format(self.key, self.frozen)
         comment = self.requirement.why_str()
         return '{:20s} # {}'.format(main, comment)
@@ -232,9 +278,20 @@ class RequirementState(object):
 
 
 class Suite(object):
-    def __init__(self, parser):
+    def __init__(self, parser, urls=None):
         self.states = {}
         self.parser = parser
+        self.urls = urls or ['https://pypi.python.org/simple/']
+        self.locators = []
+        for url in self.urls:
+            self.locators.append(
+                locators.SimpleScrapingLocator(url, timeout=3.0)
+            )
+        self.locators.append(locators.JSONLocator())
+        self.locator = locators.AggregatingLocator(*self.locators, scheme='legacy')
+
+    def locate(self, *a, **kw):
+        return self.locator.locate(*a, **kw)
 
     def add(self, key, state):
         self.states[key] = state
@@ -286,8 +343,7 @@ class Suite(object):
 
     def activate_all(self):
         for state in self.required_states():
-            if state.requirement:
-                state.activate()
+            state.activate()
 
 
 
@@ -311,9 +367,16 @@ class Parser(object):
     def parse_directory(self):
         if not op.exists(self.directory):
             return {}
-        dists = [next(iter(
+        dists = [
+            next(iter(
                 pkg_resources.find_distributions(op.join(self.directory, item), True)
-            ), None) for item in os.listdir(self.directory) if '-' in item]
+            ), None)
+            for item in os.listdir(self.directory) if '-' in item
+        ]
+        dists.extend(
+            VCSDist(op.join(self.directory, item))
+            for item in os.listdir(self.directory) if '+' in item
+        )
         dists = filter(None, dists)
         result = defaultdict(list)
         for dist in dists:
@@ -321,17 +384,19 @@ class Parser(object):
         return result
 
     def parse_frozen(self):
-        frozen = [line.split('==') for line in parse_file(self.frozen_file)] if op.exists(self.frozen_file) else []
+        frozen = [(parse_vcs_requirement(line) or line.split('==')) for line in parse_file(self.frozen_file)] if op.exists(self.frozen_file) else []
         frozen_versions = dict((name.lower(), version) for name, version in frozen)
         return frozen_versions
 
     def parse_requirements(self):
         if self.requirements_file:
             requirements = parse_file(self.requirements_file)
+            return dict((req.key, req) for req in (CustomReq(line, 'requirements file') for line in requirements))
         else:
             pkg = next(pkg_resources.find_distributions(self.package), None)
+            if pkg is None:
+                raise PundleException('There is no requirements.txt nor setup.py')
             return dict((req.key, CustomReq(str(req), 'setup.py')) for req in pkg.requires())
-        return dict((req.key, req) for req in (CustomReq(line, 'requirements file') for line in requirements))
 
 
 # Utilities
@@ -477,7 +542,7 @@ def run_console():
     import rlcompleter
     import atexit
     import code
-    activate()
+    suite = activate()
 
     history_path = os.path.expanduser("~/.python_history")
     def save_history(history_path=history_path):
@@ -488,7 +553,9 @@ def run_console():
 
     readline.set_completer(rlcompleter.Completer(globals()).complete)
     readline.parse_and_bind("tab: complete")
-    code.InteractiveConsole(locals=globals()).interact()
+    glob = globals()
+    glob['pundle_suite'] = suite
+    code.InteractiveConsole(locals=glob).interact()
 
 
 class CmdRegister:
@@ -560,6 +627,24 @@ def cmd_edit():
     if suite.need_freeze():
         raise PundleException('%s file is outdated' % suite.parser.frozen_file)
     print(suite.states[sys.argv[2]].frozen_dist().location)
+
+
+@CmdRegister.cmdline('info')
+def cmd_info():
+    "prints info about Pundle state"
+    parser_kw = create_parser_parameters()
+    suite = Parser(**parser_kw).create_suite()
+    if suite.need_freeze():
+        print('frozen.txt is outdated')
+    else:
+        print('frozen.txt is up to date')
+    for state in suite.required_states():
+        print('Requirement "{}", frozen {}, {}'.format(state.key, state.frozen, state.requirement.line if state.requirement else 'None'))
+        print('Installed versions:')
+        for dist in state.installed:
+            print('    ', repr(dist))
+        if not state.installed:
+            print('     None')
 
 
 CmdRegister.cmdline('console')(run_console)
