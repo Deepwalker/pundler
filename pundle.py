@@ -79,11 +79,12 @@ class VCSDist(object):
         self.pkg_resource = next(iter(pkg_resources.find_distributions(self.dir, True)), None)
         self.location = self.pkg_resource.location
 
-    def requires(self):
-        return self.pkg_resource.requires()
+    def requires(self, extras=[]):
+        return self.pkg_resource.requires(extras=extras)
 
     def activate(self):
         return self.pkg_resource.activate()
+
 
 class CustomReq(object):
     def __init__(self, line, source=None):
@@ -91,15 +92,15 @@ class CustomReq(object):
         self.egg = None
         if isinstance(line, pkg_resources.Requirement):
             self.req = line
-        elif not test_vcs(line):
-            self.req = pkg_resources.Requirement.parse(line)
-        else:
+        elif test_vcs(line):
             res = parse_vcs_requirement(line)
             if not res:
                 raise PundleException('Bad url %r' % line)
             key, version = res
             self.egg = key
             self.req = None
+        else:
+            self.req = pkg_resources.Requirement.parse(line)
         self.source = source
 
     def __contains__(self, something):
@@ -132,6 +133,10 @@ class CustomReq(object):
     def key(self):
         return self.req.key if self.req else self.egg
 
+    @property
+    def extras(self):
+        return self.req.extras if self.req else []
+
     def locate(self, suite):
         dist = suite.locate(str(self.req))
         if not dist:
@@ -151,7 +156,7 @@ class CustomReq(object):
             if ready:
                 return ready[0]
             target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
-            target_req = '%s==%s'%(loc_dist.name, loc_dist.version)
+            target_req = '%s==%s' % (loc_dist.name, loc_dist.version)
         try:
             makedirs(target_dir)
         except OSError:
@@ -233,7 +238,7 @@ class RequirementState(object):
             dist = self.check_installed_version(suite, install=install)
         if not dist:
             return
-        for req in dist.requires():
+        for req in dist.requires(extras=self.requirement.extras):
             suite.adjust_with_req(CustomReq(str(req), source=self.requirement), install=install, upgrade=upgrade)
 
     def frozen_dump(self):
@@ -532,6 +537,7 @@ def execute(interpreter, cmd, args):
     # clean it
     entries = entry_points()
     exc = entries[cmd].get_entry_info('console_scripts', cmd).load(require=False)
+    sys.path.insert(0, '')
     sys.argv = [cmd] + args
     exc()
 
@@ -668,7 +674,7 @@ def cmd_module():
     sys.path.insert(0, '')
     module = sys.argv[2]
     sys.argv = [sys.argv[2]] + sys.argv[3:]
-    runpy.run_module(module)
+    runpy.run_module(module, run_name='__main__')
 
 
 @CmdRegister.cmdline('env')
