@@ -166,7 +166,6 @@ class CustomReq(object):
             res = subprocess.call([sys.executable,
                 '-m', 'pip', 'install',
                 '--no-deps',
-                '--install-option=%s' % ('--install-scripts=%s' % op.join(tmp_dir, '.scripts')),
                 '-t', tmp_dir,
                 target_req
             ])
