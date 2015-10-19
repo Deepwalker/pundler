@@ -203,7 +203,11 @@ class RequirementState(object):
         # install version of package if not installed
         dist = None
         if self.has_correct_freeze():
-            dist = [installation for installation in self.installed if installation.version == self.frozen]
+            dist = [
+                installation
+                for installation in self.installed
+                if pkg_resources.parse_version(installation.version) == pkg_resources.parse_version(self.frozen)
+            ]
             dist = dist[0] if dist else None
             if install and not dist:
                 dist = self.install_frozen(suite)
@@ -249,7 +253,7 @@ class RequirementState(object):
 
     def frozen_dist(self):
         for dist in self.installed:
-            if dist.version == self.frozen:
+            if pkg_resources.parse_version(dist.version) == pkg_resources.parse_version(self.frozen):
                 return dist
 
     def install_frozen(self, suite):
