@@ -252,6 +252,8 @@ class RequirementState(object):
         return '{:20s} # {}'.format(main, comment)
 
     def frozen_dist(self):
+        if not self.frozen:
+            return
         for dist in self.installed:
             if pkg_resources.parse_version(dist.version) == pkg_resources.parse_version(self.frozen):
                 return dist
