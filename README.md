@@ -5,7 +5,7 @@ New
 ---
 
 - Added VCS support for urls like `git+https://github.com/mitsuhiko/jinja2.git@85820fceb83569df62fa5e6b9b0f2f76b7c6a3cf#egg=jinja2-2.8.0`. Push exactly like this formatted str to requirements.txt
-- Added initial support for setup.py requirements. Helpfull for package development.
+- Added initial support for setup.py requirements. Helpful for package development.
 
 
 Modern python package management for python development
@@ -21,7 +21,7 @@ often you're in the situation where the system doesn't have the current
 interpreter version.
 
 And even worse is situation when you develop several projects and every project
-need a different interpreter and indeed every project need its own versions of
+needs a different interpreter and indeed every project needs its own versions of
 packages.
 
 The packages situation was initially solved by _virtualenv_. It's not the best
@@ -48,7 +48,7 @@ configured per-project via the `.pyenv-version` file.
 Using pyenv as an example to create Pundle
 ------------------------------------------
 
-So, its cool, I like how pyenv works. But we all know that pyenv works similarly
+So, it's cool, I like how pyenv works. But we all know that pyenv works similarly
 to how rbenv works for ruby.
 
 If we're borrowing the rbenv concept from ruby, why not also borrow
@@ -69,7 +69,7 @@ If you switch the branch and your `Gemfile.lock` changes, the packages will be
 switched too. This is not magic — we just load versions according to the file.
 
 And in my opinion this is the right way to do it, and something that we need in
-python. I dont like to rebuild virtualenvs, I don't understand why I need them
+python. I don't like to rebuild virtualenvs, I don't understand why I need them
 anyway. E.g., why do I need to install Django in every single one of my
 projects?
 
@@ -83,7 +83,7 @@ interpreter startup. To activate the machinery we have several options:
 
 * use `fixate` which will put activate code in `usercustomize.py` in the user's
   directory
-* use `python -m pundle run script.py` to run script with acitvated environment
+* use `python -m pundle run script.py` to run script with activated environment
 * put activate code `import pundle; pundle.activate()` to your `manage.py` or
   other project start point.
 
@@ -109,7 +109,7 @@ And you will get `frozen.txt` file with frozen packages versions and some inform
     docopt==0.6.2        # docopt>=0.6 << pymorphy2 << requirements file
 
 
-Now your packages are install to the `~/.pundlerdir/CPython-3.4.1` directory.
+Now your packages are installed to the `~/.pundlerdir/CPython-3.4.1` directory.
 And you can use it with your fixated python:
 
     > python -m pundle console
@@ -118,7 +118,7 @@ And you can use it with your fixated python:
     >>> arrow.__version__
     '0.5.0'
 
-Pundle get frozen version from `frozen.txt`, and activate package from ~/.pundledir/CPython-3.4.1-default/arrow-0.5.0/
+Pundle gets frozen version from `frozen.txt`, and activates package from ~/.pundledir/CPython-3.4.1-default/arrow-0.5.0/
 
     >>> arrow.__file__
     '/Users/mighty_user/.pundledir/CPython-3.4.1-default/arrow-0.5.0/arrow/__init__.py'
@@ -133,7 +133,7 @@ Going deeper
 
 We have additional commands for working with packages. `upgrade`, `entry_points`, `exec` and `edit`.
 
-If you frozen versions of package is old and you want to update it, you need `upgrade` command:
+If your frozen versions of a package is old and you want to update it, you need the `upgrade` command:
 
     > python -m pundle upgrade django
 
