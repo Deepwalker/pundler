@@ -45,11 +45,13 @@ def python_version_string():
 
 
 def parse_file(filename):
-    return [req[0] for req in 
-        filter(None, [shlex.split(line)
-            for line in open(filename) if line.strip() and not line.startswith('#')
-        ])
-    ]
+    with open(filename) as f:
+        res = [req[0] for req in 
+            filter(None, [shlex.split(line)
+                for line in f if line.strip() and not line.startswith('#')
+            ])
+        ]
+    return res
 
 
 def test_vcs(req):
@@ -228,7 +230,7 @@ class RequirementState(object):
         latest = self.requirement.locate(suite)
         if not dist or pkg_resources.parse_version(latest.version) > pkg_resources.parse_version(dist.version):
             print_message('Upgrade to', latest)
-            dist = self.requirement.locate_and_install(suite)
+            dist = self.requirement.locate_and_install(suite, installed=self.get_installed())
         # Anyway use latest available dist
         self.frozen = dist.version
         self.installed.append(dist)
@@ -337,6 +339,7 @@ class Suite(object):
     def upgrade(self, key=None):
         states = [self.states[key]] if key else self.required_states()
         for state in states:
+            print('Check', state.requirement.req)
             state.reveal_requirements(self, upgrade=True)
 
     def dump_frozen(self):
@@ -541,6 +544,9 @@ def execute(interpreter, cmd, args):
     # TODO proof implementation
     # clean it
     entries = entry_points()
+    if not cmd in entries:
+        print('Script is not found. Check if package is installed, or look at the `pundle entry_points`')
+        sys.exit(1)
     exc = entries[cmd].get_entry_info('console_scripts', cmd).load(require=False)
     sys.path.insert(0, '')
     sys.argv = [cmd] + args
