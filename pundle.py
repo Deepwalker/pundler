@@ -236,15 +236,19 @@ class RequirementState(object):
         self.installed.append(dist)
         return dist
 
-    def reveal_requirements(self, suite, install=False, upgrade=False):
+    def reveal_requirements(self, suite, install=False, upgrade=False, already_revealed=None):
+        already_revealed = already_revealed.copy() if already_revealed is not None else set()
+        if self.key in already_revealed:
+            return
         if upgrade:
             dist = self.upgrade(suite)
         else:
             dist = self.check_installed_version(suite, install=install)
         if not dist:
             return
+        already_revealed.add(self.key)
         for req in dist.requires(extras=self.requirement.extras):
-            suite.adjust_with_req(CustomReq(str(req), source=self.requirement), install=install, upgrade=upgrade)
+            suite.adjust_with_req(CustomReq(str(req), source=self.requirement), install=install, upgrade=upgrade, already_revealed=already_revealed)
 
     def frozen_dump(self):
         if self.requirement.egg:
@@ -323,14 +327,14 @@ class Suite(object):
         #     print('!!! Unneeded', [state.key for state in self.states.values() if not state.requirement])
         return not_correct #or unneeded
 
-    def adjust_with_req(self, req, install=False, upgrade=False):
+    def adjust_with_req(self, req, install=False, upgrade=False, already_revealed=None):
         state = self.states.get(req.key)
         if not state:
             state = RequirementState(req.key, req=req)
             self.add(req.key, state)
         else:
             state.adjust_with_req(req)
-        state.reveal_requirements(self, install=install, upgrade=upgrade)
+        state.reveal_requirements(self, install=install, upgrade=upgrade, already_revealed=already_revealed or set())
 
     def install(self, install=True):
         for state in self.required_states():
@@ -553,28 +557,6 @@ def execute(interpreter, cmd, args):
     exc()
 
 
-def run_console():
-    "starts python console with activated pundle environment"
-    import readline
-    import rlcompleter
-    import atexit
-    import code
-    suite = activate()
-
-    history_path = os.path.expanduser("~/.python_history")
-    def save_history(history_path=history_path):
-        readline.write_history_file(history_path)
-    if os.path.exists(history_path):
-        readline.read_history_file(history_path)
-    atexit.register(save_history)
-
-    readline.set_completer(rlcompleter.Completer(globals()).complete)
-    readline.parse_and_bind("tab: complete")
-    glob = globals()
-    glob['pundle_suite'] = suite
-    code.InteractiveConsole(locals=glob).interact()
-
-
 class CmdRegister:
     commands = {}
     ordered = []
@@ -664,7 +646,44 @@ def cmd_info():
             print('     None')
 
 
-CmdRegister.cmdline('console')(run_console)
+def run_console(suite):
+    import readline
+    import rlcompleter
+    import atexit
+    import code
+
+    history_path = os.path.expanduser("~/.python_history")
+    def save_history(history_path=history_path):
+        readline.write_history_file(history_path)
+    if os.path.exists(history_path):
+        readline.read_history_file(history_path)
+    atexit.register(save_history)
+
+    readline.set_completer(rlcompleter.Completer(globals()).complete)
+    readline.parse_and_bind("tab: complete")
+    glob = globals()
+    glob['pundle_suite'] = suite
+    code.InteractiveConsole(locals=glob).interact()
+
+
+@CmdRegister.cmdline('console')
+def cmd_console():
+    "[ipython|bpython|ptpython] starts python console with activated pundle environment"
+    suite = activate()
+    interpreter = sys.argv[2] if len(sys.argv) > 2 else None
+    if not interpreter:
+        run_console(suite)
+    elif interpreter == 'ipython':
+        from IPython import embed
+        embed()
+    elif interpreter == 'ptpython':
+        from ptpython.repl import embed
+        embed(globals(), locals())
+    elif interpreter == 'bpython':
+        from bpython import embed
+        embed()
+    else:
+        raise PundleException('Unknown interpreter: {}. Choose one of None, ipython, bpython, ptpython.')
 
 
 @CmdRegister.cmdline('run')
