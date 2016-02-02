@@ -17,6 +17,7 @@ import subprocess
 import sys
 import shlex
 import pkg_resources
+import pip
 
 # TODO bundle own version of distlib. Perhaps
 try:
@@ -165,18 +166,18 @@ class CustomReq(object):
             pass
         tmp_dir = tempfile.mkdtemp()
         try:
-            res = subprocess.call([sys.executable,
-                '-m', 'pip', 'install',
+            pip.main([
+                'install',
                 '--no-deps',
                 '-t', tmp_dir,
                 target_req
             ])
             for item in os.listdir(tmp_dir):
                 shutil.move(op.join(tmp_dir, item), op.join(target_dir, item))
+        except Exception as exc:
+            raise PundleException('%s was not installed due error %s' % (self.egg or loc_dist.name, exc))
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
-        if res != 0:
-            raise PundleException('%s was not installed due error' % (self.egg or loc_dist.name))
         return next(iter(pkg_resources.find_distributions(target_dir, True)), None)
 
 
