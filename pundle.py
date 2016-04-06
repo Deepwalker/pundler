@@ -104,7 +104,7 @@ class CustomReq(object):
             self.req = None
         else:
             self.req = pkg_resources.Requirement.parse(line)
-        self.source = source
+        self.sources = set([source])
 
     def __contains__(self, something):
         if self.req:
@@ -118,10 +118,16 @@ class CustomReq(object):
         return '<CustomReq %r>' % self.__dict__
 
     def why_str(self):
-        if isinstance(self.source, str_types):
-            return '{} << {}'.format(self.line, self.source)
-        if isinstance(self.source, CustomReq):
-            return '{} << {}'.format(self.line, self.source.why_str())
+        if len(self.sources) < 2:
+            return '{} << {}'.format(self.line, self.why_str_one(list(self.sources)[0]))
+        causes = list(sorted(self.why_str_one(source) for source in self.sources))
+        return '{} << [{}]'.format(self.line, ' | '.join(causes))
+
+    def why_str_one(self, source):
+        if isinstance(source, str_types):
+            return source
+        elif isinstance(source, CustomReq):
+            return source.why_str()
         return '?'
 
     def adjust_with_req(self, req):
@@ -131,6 +137,7 @@ class CustomReq(object):
         self.requirement = pkg_resources.Requirement.parse('{} {}'.format(
             self.req.project_name, versions
         ))
+        self.sources.update(req.sources)
 
     @property
     def key(self):
