@@ -69,7 +69,15 @@ def parse_vcs_requirement(req):
     parsed = dict(parse_qsl(parsed_url.fragment))
     if not 'egg' in parsed:
         return None
-    return parsed['egg'].split('-')[0], req
+    egg = parsed['egg'].split('-')
+    return egg[0], req, egg[1] if len(egg) > 1 else None
+
+
+def parse_frozen_vcs(req):
+    res = parse_vcs_requirement(req)
+    if not res:
+        return
+    return res[0], res[1]
 
 
 class VCSDist(object):
@@ -78,6 +86,8 @@ class VCSDist(object):
         name = op.split(directory)[-1]
         self.key, encoded = name.split('+', 1)
         self.line = b64decode(encoded).decode('utf-8')
+        egg, req, version = parse_vcs_requirement(self.line)
+        self.hashcmp = (pkg_resources.SetuptoolsVersion(version), -1, egg, self.dir)
         self.version = self.line
         self.pkg_resource = next(iter(pkg_resources.find_distributions(self.dir, True)), None)
         self.location = self.pkg_resource.location
@@ -87,6 +97,9 @@ class VCSDist(object):
 
     def activate(self):
         return self.pkg_resource.activate()
+
+    def __lt__(self, other):
+        return self.hashcmp.__lt__(other.hashcmp)
 
 
 class CustomReq(object):
@@ -99,9 +112,9 @@ class CustomReq(object):
             res = parse_vcs_requirement(line)
             if not res:
                 raise PundleException('Bad url %r' % line)
-            key, version = res
-            self.egg = key
-            self.req = None
+            egg, req, version = res
+            self.egg = egg
+            self.req = None #pkg_resources.Requirement.parse(res)
         else:
             self.req = pkg_resources.Requirement.parse(line)
         self.sources = set([source])
@@ -132,6 +145,7 @@ class CustomReq(object):
 
     def adjust_with_req(self, req):
         if not self.req:
+            return
             raise PundleException('VCS')
         versions = ','.join(''.join(t) for t in set(self.req.specs + req.req.specs))
         self.requirement = pkg_resources.Requirement.parse('{} {}'.format(
@@ -160,13 +174,14 @@ class CustomReq(object):
             key = b64encode(self.line.encode('utf-8')).decode()
             target_dir = op.join(suite.parser.directory, '{}+{}'.format(self.egg, key))
             target_req = self.line
+            ready = [installation for installation in (installed or []) if getattr(installation, 'line', None) == self.line]
         else:
             loc_dist = self.locate(suite)
             ready = [installation for installation in (installed or []) if installation.version == loc_dist.version]
-            if ready:
-                return ready[0]
             target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
             target_req = '%s==%s' % (loc_dist.name, loc_dist.version)
+        if ready:
+            return ready[0]
         try:
             makedirs(target_dir)
         except OSError:
@@ -409,7 +424,7 @@ class Parser(object):
         return result
 
     def parse_frozen(self):
-        frozen = [(parse_vcs_requirement(line) or line.split('==')) for line in parse_file(self.frozen_file)] if op.exists(self.frozen_file) else []
+        frozen = [(parse_frozen_vcs(line) or line.split('==')) for line in parse_file(self.frozen_file)] if op.exists(self.frozen_file) else []
         frozen_versions = dict((name.lower(), version) for name, version in frozen)
         return frozen_versions
 

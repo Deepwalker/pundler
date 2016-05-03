@@ -1,6 +1,10 @@
 Pundle
 ======
 
+[![PyPI](https://img.shields.io/pypi/dm/pundle.svg?style=flat-square)](https://pypi.python.org/pypi/pundle)
+[![PyPI](https://img.shields.io/pypi/v/pundle.svg?style=flat-square)](https://pypi.python.org/pypi/pundle)
+[![PyPI](https://img.shields.io/pypi/l/pundle.svg?style=flat-square)](https://pypi.python.org/pypi/pundle)
+
 New
 ---
 
