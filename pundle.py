@@ -3,8 +3,7 @@ import re
 try:
     from urllib.parse import urlparse, parse_qsl
 except ImportError:
-    import urlparse
-    parse_qsl = urlparse.parse_qsl
+    from urlparse import urlparse, parse_qsl
 from collections import defaultdict
 from base64 import b64encode, b64decode
 import platform
