@@ -738,6 +738,36 @@ def cmd_env():
     subprocess.call(sys.argv[2:], env=aug_env)
 
 
+@CmdRegister.cmdline('linkall')
+def link_all():
+    local_dir = '.pundle_local'
+    suite = activate()
+
+    local_dir_info = {de.name: de for de in os.scandir(local_dir)}
+    try:
+        makedirs(local_dir)
+    except OSError:
+        pass
+    for r in suite.states.values():
+        d = r.frozen_dist()
+        if not d:
+            continue
+        for dir_entry in os.scandir(d.location):
+            if dir_entry.name.startswith('__') or dir_entry.name.startswith('.') or dir_entry.name == 'bin':
+                continue
+            dest_path = os.path.join(local_dir, dir_entry.name)
+            if dir_entry.name in local_dir_info:
+                sym = local_dir_info.pop(dir_entry.name)
+                existed = op.realpath(sym.path)
+                if existed == dir_entry.path:
+                    continue
+                os.remove(sym.path)
+            os.symlink(dir_entry.path, dest_path)
+    # remove extra links
+    for de in local_dir_info:
+        os.remove(de.path)
+
+
 if __name__ == '__main__':
     # main()
     CmdRegister.main()
