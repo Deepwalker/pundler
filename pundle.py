@@ -102,7 +102,7 @@ class VCSDist(object):
 
 
 class CustomReq(object):
-    def __init__(self, line, source=None):
+    def __init__(self, line, env, source=None):
         self.line = line
         self.egg = None
         if isinstance(line, pkg_resources.Requirement):
@@ -117,6 +117,8 @@ class CustomReq(object):
         else:
             self.req = pkg_resources.Requirement.parse(line)
         self.sources = set([source])
+        self.envs = set()
+        self.add_env(env)
 
     def __contains__(self, something):
         if self.req:
@@ -201,6 +203,12 @@ class CustomReq(object):
             shutil.rmtree(tmp_dir, ignore_errors=True)
         return next(iter(pkg_resources.find_distributions(target_dir, True)), None)
 
+    def add_env(self, env):
+        if isinstance(env, (str)):
+            self.envs.add(env)
+        else:
+            self.envs.update(env)
+
 
 class RequirementState(object):
     def __init__(self, key, req=None, frozen=None, installed=None):
@@ -270,7 +278,12 @@ class RequirementState(object):
             return
         already_revealed.add(self.key)
         for req in dist.requires(extras=self.requirement.extras):
-            suite.adjust_with_req(CustomReq(str(req), source=self.requirement), install=install, upgrade=upgrade, already_revealed=already_revealed)
+            suite.adjust_with_req(
+                CustomReq(str(req), self.requirement.envs, source=self.requirement),
+                install=install,
+                upgrade=upgrade,
+                already_revealed=already_revealed,
+            )
 
     def frozen_dump(self):
         if self.requirement.egg:
@@ -316,9 +329,13 @@ class RequirementState(object):
 
 
 class Suite(object):
-    def __init__(self, parser, urls=None):
+    """
+    Main object that represents current directory pundle state
+    """
+    def __init__(self, parser, envs=[], urls=None):
         self.states = {}
         self.parser = parser
+        self.envs = envs
         self.urls = urls or ['https://pypi.python.org/simple/']
         self.locators = []
         for url in self.urls:
@@ -368,9 +385,11 @@ class Suite(object):
             print('Check', state.requirement.req)
             state.reveal_requirements(self, upgrade=True)
 
-    def dump_frozen(self):
+    def dump_frozen(self, env):
         return '\n'.join(sorted(
-            state.frozen_dump() for state in self.required_states() if state.requirement
+            state.frozen_dump()
+            for state in self.required_states()
+            if state.requirement and env in state.requirement.envs
         )) + '\n'
 
     def need_install(self):
@@ -380,23 +399,33 @@ class Suite(object):
         for state in self.states.values():
             state.install_frozen(self)
 
-    def activate_all(self):
+    def activate_all(self, env=''):
         for state in self.required_states():
-            state.activate()
+            if '' in state.requirement.envs or env in state.requirement.envs:
+                state.activate()
+
+    def save_frozen(self):
+        "Saves frozen files to disk"
+        for env, frozen_file in self.parser.frozen_files.items():
+            with open(frozen_file, 'w') as f:
+                f.write(self.dump_frozen(env))
 
 
 
 class Parser(object):
-    def __init__(self, directory='Pundledir', requirements_file=None, frozen_file='frozen.txt', package=None):
+    def __init__(self, directory='Pundledir', requirements_files=None, frozen_files='frozen.txt', package=None):
         self.directory = directory
-        self.requirements_file = requirements_file
-        self.frozen_file = frozen_file
+        self.requirements_files = requirements_files
+        self.frozen_files = frozen_files
         self.package = package
+
+    def envs(self):
+        return list(self.requirements_files.keys()) or ['']
 
     def create_suite(self):
         reqs, freezy, diry = self.parse_requirements(), self.parse_frozen(), self.parse_directory()
         state_keys = set(list(reqs.keys()) + list(freezy.keys()) + list(diry.keys()))
-        suite = Suite(self)
+        suite = Suite(self, envs=self.envs())
         for key in state_keys:
             suite.add(key,
                 RequirementState(key, reqs.get(key), freezy.get(key), diry.get(key, []))
@@ -407,6 +436,7 @@ class Parser(object):
         if not op.exists(self.directory):
             return {}
         dists = [
+            # this magic takes first element or None
             next(iter(
                 pkg_resources.find_distributions(op.join(self.directory, item), True)
             ), None)
@@ -423,14 +453,36 @@ class Parser(object):
         return result
 
     def parse_frozen(self):
-        frozen = [(parse_frozen_vcs(line) or line.split('==')) for line in parse_file(self.frozen_file)] if op.exists(self.frozen_file) else []
-        frozen_versions = dict((name.lower(), version) for name, version in frozen)
+        frozen_versions = {}
+        for frozen_file in self.frozen_files.values():
+            if op.exists(frozen_file):
+                frozen = [
+                    (parse_frozen_vcs(line) or line.split('=='))
+                    for line in parse_file(frozen_file)
+                ]
+            else:
+                frozen = []
+            for name, version in frozen:
+                frozen_versions[name.lower()] = version
         return frozen_versions
 
     def parse_requirements(self):
-        if self.requirements_file:
-            requirements = parse_file(self.requirements_file)
-            return dict((req.key, req) for req in (CustomReq(line, 'requirements file') for line in requirements))
+        if self.requirements_files:
+            all_requirements = {}
+            for env, req_file in self.requirements_files.items():
+                requirements = parse_file(req_file)
+                if env:
+                    source = 'requirements %s file' % env
+                else:
+                    source = 'requirements file'
+                for req in (CustomReq(line, env, source=source) for line in requirements):
+                    (req.key, req)
+                    if req.key in all_requirements:
+                        # if requirements exists in other env, then add this env too
+                        all_requirements[req.key].add_env(env)
+                    else:
+                        all_requirements[req.key] = req
+            return all_requirements
         else:
             pkg = next(pkg_resources.find_distributions(self.package), None)
             if pkg is None:
@@ -451,18 +503,38 @@ def search_files_upward(start_path=None):
     return search_files_upward(start_path=up_path)
 
 
+def find_all_prefixed_files(directory, prefix):
+    "find all requirements_*.txt files"
+    envs = {}
+    for entry in os.listdir(directory):
+        if not entry.startswith(prefix):
+            continue
+        name, ext = op.splitext(entry)
+        env = name[len(prefix):].lstrip('_')
+        envs[env] = op.join(directory, entry)
+    return envs
+
+
 def create_parser_parameters():
     base_path = search_files_upward()
     if not base_path:
         return None
     py_version_path = python_version_string()
     pundledir_base = os.environ.get('PUNDLEDIR') or op.join(op.expanduser('~'), '.pundledir')
-    params = {
-        'frozen_file': op.join(base_path, 'frozen.txt'),
-        'directory': op.join(pundledir_base, py_version_path)
-    }
     if op.exists(op.join(base_path, 'requirements.txt')):
-        params['requirements_file'] = op.join(base_path, 'requirements.txt')
+        requirements_files = find_all_prefixed_files(base_path, 'requirements')
+    else:
+        requirements_files = {}
+    envs = list(requirements_files.keys()) or ['']
+    params = {
+        'frozen_files': {
+            env: op.join(base_path, 'frozen_%s.txt' % env if env else 'frozen.txt')
+            for env in envs
+        },
+        'directory': op.join(pundledir_base, py_version_path),
+    }
+    if requirements_files:
+        params['requirements_files'] = requirements_files
     elif op.exists(op.join(base_path, 'setup.py')):
         params['package'] = base_path
     else:
@@ -485,8 +557,7 @@ def upgrade_all(*a, **kw):
     suite.need_freeze()
     suite.upgrade(key=key)
     suite.install()
-    with open(suite.parser.frozen_file, 'w') as f:
-        f.write(suite.dump_frozen())
+    suite.save_frozen()
 
 
 def install_all(*a, **kw):
@@ -496,8 +567,7 @@ def install_all(*a, **kw):
         suite.install()
     else:
         print_message('Nothing to do, all packages installed')
-    with open(suite.parser.frozen_file, 'w') as f:
-        f.write(suite.dump_frozen())
+    suite.save_frozen()
     return suite
 
 
@@ -507,10 +577,10 @@ def activate():
         raise PundleException('Can`t create parser parameters')
     suite = Parser(**parser_kw).create_suite()
     if suite.need_freeze():
-        raise PundleException('%s file is outdated' % suite.parser.frozen_file)
+        raise PundleException('frozen file is outdated')
     if suite.need_install():
         raise PundleException('Some dependencies not installed')
-    suite.activate_all()
+    suite.activate_all(env=os.environ.get('PUNDLEENV') or '')
     return suite
 
 
@@ -521,7 +591,7 @@ import pundle; pundle.activate()
 """
 
 def fixate():
-    "puts activation code to usercostumize.py for user"
+    "puts activation code to usercustomize.py for user"
     print_message('Fixate')
     import site
     userdir = site.getusersitepackages()
@@ -743,11 +813,11 @@ def link_all():
     local_dir = '.pundle_local'
     suite = activate()
 
-    local_dir_info = {de.name: de for de in os.scandir(local_dir)}
     try:
         makedirs(local_dir)
     except OSError:
         pass
+    local_dir_info = {de.name: de for de in os.scandir(local_dir)}
     for r in suite.states.values():
         d = r.frozen_dist()
         if not d:
