@@ -420,7 +420,9 @@ class Parser(object):
         self.package = package
 
     def envs(self):
-        return list(self.requirements_files.keys()) or ['']
+        if self.requirements_files:
+            return list(self.requirements_files.keys()) or ['']
+        return ['']
 
     def create_suite(self):
         reqs, freezy, diry = self.parse_requirements(), self.parse_frozen(), self.parse_directory()
