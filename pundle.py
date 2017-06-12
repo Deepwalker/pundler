@@ -153,6 +153,7 @@ class CustomReq(object):
             self.req.project_name, versions
         ))
         self.sources.update(req.sources)
+        self.add_env(req.envs)
 
     @property
     def key(self):
@@ -204,7 +205,7 @@ class CustomReq(object):
         return next(iter(pkg_resources.find_distributions(target_dir, True)), None)
 
     def add_env(self, env):
-        if isinstance(env, (str)):
+        if isinstance(env, str):
             self.envs.add(env)
         else:
             self.envs.update(env)
@@ -489,7 +490,7 @@ class Parser(object):
             pkg = next(pkg_resources.find_distributions(self.package), None)
             if pkg is None:
                 raise PundleException('There is no requirements.txt nor setup.py')
-            return dict((req.key, CustomReq(str(req), 'setup.py')) for req in pkg.requires())
+            return dict((req.key, CustomReq(str(req), '', source='setup.py')) for req in pkg.requires())
 
 
 # Utilities
