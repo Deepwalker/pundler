@@ -303,7 +303,8 @@ class RequirementState(object):
     def install_frozen(self, suite):
         if self.frozen_dist() or not self.frozen:
             return
-        frozen_req = CustomReq("{}=={}".format(self.key, self.frozen))
+        envs = self.requirement.envs if self.requirement else ''
+        frozen_req = CustomReq("{}=={}".format(self.key, self.frozen), envs)
         dist = frozen_req.locate_and_install(suite)
         self.installed.append(dist)
         return dist
@@ -785,10 +786,11 @@ def cmd_console():
 def cmd_run():
     "executes given script"
     activate()
+    import runpy
     sys.path.insert(0, '')
     script = sys.argv[2]
     sys.argv = [sys.argv[2]] + sys.argv[3:]
-    exec(open(script).read(), {'__file__': script, '__name__': '__main__'})
+    runpy.run_path(script, run_name='__main__')
 
 
 @CmdRegister.cmdline('module')
