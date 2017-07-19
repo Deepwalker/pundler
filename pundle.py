@@ -46,9 +46,11 @@ def python_version_string():
 
 def parse_file(filename):
     with open(filename) as f:
-        res = [req[0] for req in 
-            filter(None, [shlex.split(line)
-                for line in f if line.strip() and not line.startswith('#')
+        res = [req[0] for req in
+            filter(None, [
+                shlex.split(line)
+                for line in f
+                if line.strip() and not line.startswith('#') and not line.startswith('-')
             ])
         ]
     return res
@@ -164,9 +166,11 @@ class CustomReq(object):
         return self.req.extras if self.req else []
 
     def locate(self, suite):
-        dist = suite.locate(str(self.req))
+        # requirements can have somethin after `;` symbol that `locate` does not understand
+        req = str(self.req).split(';', 1)[0]
+        dist = suite.locate(req)
         if not dist:
-            dist = suite.locate(str(self.req), prereleases=True)
+            dist = suite.locate(req, prereleases=True)
         if not dist:
             raise PundleException('%s can not be located' % self.req)
         return dist
@@ -181,7 +185,10 @@ class CustomReq(object):
             loc_dist = self.locate(suite)
             ready = [installation for installation in (installed or []) if installation.version == loc_dist.version]
             target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
-            target_req = '%s==%s' % (loc_dist.name, loc_dist.version)
+            # DEL? target_req = '%s==%s' % (loc_dist.name, loc_dist.version)
+            # If we use custom index, then we want not to configure PIP with it
+            # and just give it URL
+            target_req = loc_dist.download_url
         if ready:
             return ready[0]
         try:
@@ -330,6 +337,18 @@ class RequirementState(object):
                 print(e)
 
 
+class AggregatingLocator(object):
+    def __init__(self, locators):
+        self.locators = locators
+
+    def locate(self, req, **kw):
+        for locator in self.locators:
+            print('try', locator, 'for', req)
+            revealed = locator.locate(req, **kw)
+            if revealed:
+                return revealed
+
+
 class Suite(object):
     """
     Main object that represents current directory pundle state
@@ -339,13 +358,15 @@ class Suite(object):
         self.parser = parser
         self.envs = envs
         self.urls = urls or ['https://pypi.python.org/simple/']
+        if 'PIP_EXTRA_INDEX_URL' in os.environ:
+            self.urls.insert(0, os.environ['PIP_EXTRA_INDEX_URL'])
         self.locators = []
         for url in self.urls:
             self.locators.append(
-                locators.SimpleScrapingLocator(url, timeout=3.0)
+                locators.SimpleScrapingLocator(url, timeout=3.0, scheme='legacy')
             )
-        self.locators.append(locators.JSONLocator())
-        self.locator = locators.AggregatingLocator(*self.locators, scheme='legacy')
+        self.locators.append(locators.JSONLocator(scheme='legacy'))
+        self.locator = AggregatingLocator(self.locators)
 
     def locate(self, *a, **kw):
         return self.locator.locate(*a, **kw)
@@ -480,7 +501,6 @@ class Parser(object):
                 else:
                     source = 'requirements file'
                 for req in (CustomReq(line, env, source=source) for line in requirements):
-                    (req.key, req)
                     if req.key in all_requirements:
                         # if requirements exists in other env, then add this env too
                         all_requirements[req.key].add_env(env)
@@ -841,6 +861,15 @@ def link_all():
     # remove extra links
     for de in local_dir_info:
         os.remove(de.path)
+
+
+@CmdRegister.cmdline('show_requirements')
+def show_requirements():
+    "Shows details requirements info"
+    suite = activate()
+    for name, state in suite.states.items():
+        if state.requirement:
+            print(name, 'frozen:', state.frozen, 'required:', state.requirement.req if state.requirement.req else 'VCS')
 
 
 if __name__ == '__main__':

@@ -171,3 +171,10 @@ Last command is `edit` - it will help you find fast where the package code is:
     /Users/main_universe_user/.pundledir/CPython-3.4.1-default/arrow-0.5.0
 
 Use it, feel it, like it, share it. Commit, pull request.
+
+
+Howto
+-----
+
+Q: How to use custom index url or extra index?
+A: use PIP_EXTRA_INDEX_URL or any other `pip` environment variables.
