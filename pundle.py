@@ -88,6 +88,7 @@ class VCSDist(object):
         self.key, encoded = name.split('+', 1)
         self.line = b64decode(encoded).decode('utf-8')
         egg, req, version = parse_vcs_requirement(self.line)
+        version = version or '0.0.0'
         self.hashcmp = (pkg_resources.SetuptoolsVersion(version), -1, egg, self.dir)
         self.version = self.line
         self.pkg_resource = next(iter(pkg_resources.find_distributions(self.dir, True)), None)
@@ -165,11 +166,12 @@ class CustomReq(object):
     def extras(self):
         return self.req.extras if self.req else []
 
-    def locate(self, suite):
+    def locate(self, suite, prereleases=False):
         # requirements can have somethin after `;` symbol that `locate` does not understand
         req = str(self.req).split(';', 1)[0]
-        dist = suite.locate(req)
+        dist = suite.locate(req, prereleases=prereleases)
         if not dist:
+            # have not find any releases so search for pre
             dist = suite.locate(req, prereleases=True)
         if not dist:
             raise PundleException('%s can not be located' % self.req)
@@ -261,11 +263,11 @@ class RequirementState(object):
     def get_installed(self):
         return [installation for installation in self.installed if installation.version in self.requirement]
 
-    def upgrade(self, suite):
+    def upgrade(self, suite, prereleases=False):
         # check if we have fresh packages on PIPY
         dists = self.get_installed()
         dist = dists[0] if dists else None
-        latest = self.requirement.locate(suite)
+        latest = self.requirement.locate(suite, prereleases=prereleases)
         if not dist or pkg_resources.parse_version(latest.version) > pkg_resources.parse_version(dist.version):
             print_message('Upgrade to', latest)
             dist = self.requirement.locate_and_install(suite, installed=self.get_installed())
@@ -274,12 +276,12 @@ class RequirementState(object):
         self.installed.append(dist)
         return dist
 
-    def reveal_requirements(self, suite, install=False, upgrade=False, already_revealed=None):
+    def reveal_requirements(self, suite, install=False, upgrade=False, already_revealed=None, prereleases=False):
         already_revealed = already_revealed.copy() if already_revealed is not None else set()
         if self.key in already_revealed:
             return
         if upgrade:
-            dist = self.upgrade(suite)
+            dist = self.upgrade(suite, prereleases=prereleases)
         else:
             dist = self.check_installed_version(suite, install=install)
         if not dist:
@@ -402,11 +404,11 @@ class Suite(object):
         for state in self.required_states():
             state.reveal_requirements(self, install=install)
 
-    def upgrade(self, key=None):
+    def upgrade(self, key=None, prereleases=False):
         states = [self.states[key]] if key else self.required_states()
         for state in states:
             print('Check', state.requirement.req)
-            state.reveal_requirements(self, upgrade=True)
+            state.reveal_requirements(self, upgrade=True, prereleases=prereleases)
 
     def dump_frozen(self, env):
         return '\n'.join(sorted(
@@ -577,9 +579,10 @@ def create_parser_or_exit():
 # Commands
 def upgrade_all(*a, **kw):
     key = kw.pop('key')
+    prereleases = kw.pop('prereleases')
     suite = Parser(*a, **kw).create_suite()
     suite.need_freeze()
-    suite.upgrade(key=key)
+    suite.upgrade(key=key, prereleases=prereleases)
     suite.install()
     suite.save_frozen()
 
@@ -713,9 +716,10 @@ def cmd_install():
 
 @CmdRegister.cmdline('upgrade')
 def cmd_upgrade():
-    "[package] if package provided will upgrade it and dependencies or all packages from PyPI"
+    "[package [pre]] if package provided will upgrade it and dependencies or all packages from PyPI. If `pre` provided will look for prereleases."
     key = sys.argv[2] if len(sys.argv) > 2 else None
-    upgrade_all(key=key, **create_parser_or_exit())
+    prereleases = sys.argv[3] == 'pre' if len(sys.argv) > 3 else False
+    upgrade_all(key=key, prereleases=prereleases, **create_parser_or_exit())
 
 
 CmdRegister.cmdline('fixate')(fixate)
