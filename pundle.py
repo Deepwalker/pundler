@@ -1,4 +1,4 @@
-from __future__ import print_function#, unicode_literals
+from __future__ import print_function
 import re
 try:
     from urllib.parse import urlparse, parse_qsl
@@ -29,6 +29,7 @@ try:
 except NameError:
     str_types = (str, bytes)
 
+
 def print_message(*a, **kw):
     print(*a, **kw)
 
@@ -46,13 +47,14 @@ def python_version_string():
 
 def parse_file(filename):
     with open(filename) as f:
-        res = [req[0] for req in
+        res = [
+            req[0] for req in
             filter(None, [
                 shlex.split(line)
                 for line in f
                 if line.strip() and not line.startswith('#') and not line.startswith('-')
-            ])
-        ]
+                ])
+            ]
     return res
 
 
@@ -61,14 +63,14 @@ def test_vcs(req):
 
 
 def parse_vcs_requirement(req):
-    if not '+' in req:
+    if '+' not in req:
         return None
     vcs, url = req.split('+', 1)
-    if not vcs in ('git', 'svn', 'hg'):
+    if vcs not in ('git', 'svn', 'hg'):
         return None
     parsed_url = urlparse(url)
     parsed = dict(parse_qsl(parsed_url.fragment))
-    if not 'egg' in parsed:
+    if 'egg' not in parsed:
         return None
     egg = parsed['egg'].split('-')
     return egg[0], req, egg[1] if len(egg) > 1 else None
@@ -116,7 +118,7 @@ class CustomReq(object):
                 raise PundleException('Bad url %r' % line)
             egg, req, version = res
             self.egg = egg
-            self.req = None #pkg_resources.Requirement.parse(res)
+            self.req = None  # pkg_resources.Requirement.parse(res)
         else:
             self.req = pkg_resources.Requirement.parse(line)
         self.sources = set([source])
@@ -182,10 +184,18 @@ class CustomReq(object):
             key = b64encode(self.line.encode('utf-8')).decode()
             target_dir = op.join(suite.parser.directory, '{}+{}'.format(self.egg, key))
             target_req = self.line
-            ready = [installation for installation in (installed or []) if getattr(installation, 'line', None) == self.line]
+            ready = [
+                installation
+                for installation in (installed or [])
+                if getattr(installation, 'line', None) == self.line
+            ]
         else:
             loc_dist = self.locate(suite)
-            ready = [installation for installation in (installed or []) if installation.version == loc_dist.version]
+            ready = [
+                installation
+                for installation in (installed or [])
+                if installation.version == loc_dist.version
+            ]
             target_dir = op.join(suite.parser.directory, '{}-{}'.format(loc_dist.key, loc_dist.version))
             # DEL? target_req = '%s==%s' % (loc_dist.name, loc_dist.version)
             # If we use custom index, then we want not to configure PIP with it
@@ -324,15 +334,13 @@ class RequirementState(object):
             raise PundleException('Distribution is not installed %s' % self.key)
         dist.activate()
         pkg_resources.working_set.add_entry(dist.location)
-        # find end execute pth
+        # find end execute *.pth
         for filename in os.listdir(dist.location):
             if not filename.endswith('pth'):
                 continue
             try:
                 for line in open(op.join(dist.location, filename)):
                     if line.startswith('import '):
-                        sitedir = dist.location
-                        # print('Exec', line.strip())
                         exec(line.strip())
             except Exception as e:
                 print('Erroneous pth file %r' % op.join(dist.location, filename))
@@ -389,7 +397,7 @@ class Suite(object):
         # unneeded = any(state.frozen for state in self.states.values() if not state.requirement)
         # if unneeded:
         #     print('!!! Unneeded', [state.key for state in self.states.values() if not state.requirement])
-        return not_correct #or unneeded
+        return not_correct  # or unneeded
 
     def adjust_with_req(self, req, install=False, upgrade=False, already_revealed=None):
         state = self.states.get(req.key)
@@ -436,7 +444,6 @@ class Suite(object):
                 f.write(self.dump_frozen(env))
 
 
-
 class Parser(object):
     def __init__(self, directory='Pundledir', requirements_files=None, frozen_files='frozen.txt', package=None):
         self.directory = directory
@@ -454,8 +461,9 @@ class Parser(object):
         state_keys = set(list(reqs.keys()) + list(freezy.keys()) + list(diry.keys()))
         suite = Suite(self, envs=self.envs())
         for key in state_keys:
-            suite.add(key,
-                RequirementState(key, reqs.get(key), freezy.get(key), diry.get(key, []))
+            suite.add(
+                key,
+                RequirementState(key, reqs.get(key), freezy.get(key), diry.get(key, [])),
             )
         return suite
 
@@ -617,6 +625,7 @@ import pundle; pundle.activate()
 # pundle user customization end
 """
 
+
 def fixate():
     "puts activation code to usercustomize.py for user"
     print_message('Fixate')
@@ -667,7 +676,7 @@ def execute(interpreter, cmd, args):
     # TODO proof implementation
     # clean it
     entries = entry_points()
-    if not cmd in entries:
+    if cmd not in entries:
         print('Script is not found. Check if package is installed, or look at the `pundle entry_points`')
         sys.exit(1)
     exc = entries[cmd].get_entry_info('console_scripts', cmd).load(require=False)
@@ -701,7 +710,7 @@ class CmdRegister:
         if alias == 'help':
             cls.help()
             return
-        if not alias in cls.commands:
+        if alias not in cls.commands:
             print('Unknown command\nTry this:')
             cls.help()
             sys.exit(1)
@@ -716,7 +725,10 @@ def cmd_install():
 
 @CmdRegister.cmdline('upgrade')
 def cmd_upgrade():
-    "[package [pre]] if package provided will upgrade it and dependencies or all packages from PyPI. If `pre` provided will look for prereleases."
+    """
+    [package [pre]] if package provided will upgrade it and dependencies or all packages from PyPI.
+    If `pre` provided will look for prereleases.
+    """
     key = sys.argv[2] if len(sys.argv) > 2 else None
     prereleases = sys.argv[3] == 'pre' if len(sys.argv) > 3 else False
     upgrade_all(key=key, prereleases=prereleases, **create_parser_or_exit())
@@ -758,7 +770,13 @@ def cmd_info():
     else:
         print('frozen.txt is up to date')
     for state in suite.required_states():
-        print('Requirement "{}", frozen {}, {}'.format(state.key, state.frozen, state.requirement.line if state.requirement else 'None'))
+        print(
+            'Requirement "{}", frozen {}, {}'.format(
+                state.key,
+                state.frozen,
+                state.requirement.line if state.requirement else 'None'
+            )
+        )
         print('Installed versions:')
         for dist in state.installed:
             print('    ', repr(dist))
@@ -773,10 +791,12 @@ def run_console(suite):
     import code
 
     history_path = os.path.expanduser("~/.python_history")
+
     def save_history(history_path=history_path):
         readline.write_history_file(history_path)
     if os.path.exists(history_path):
         readline.read_history_file(history_path)
+
     atexit.register(save_history)
 
     readline.set_completer(rlcompleter.Completer(globals()).complete)

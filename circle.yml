@@ -1,0 +1,11 @@
+## Customize the test machine
+machine:
+  python:
+    version:
+      3.6.0
+  post:
+    - pyenv local 3.6.0 2.7.10
+
+dependencies:
+  pre:
+    - pip install pymongo
