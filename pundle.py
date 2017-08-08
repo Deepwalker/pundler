@@ -179,7 +179,7 @@ class CustomReq(object):
             raise PundleException('%s can not be located' % self.req)
         return dist
 
-    def locate_and_install(self, suite, installed=None):
+    def locate_and_install(self, suite, installed=None, prereleases=False):
         if self.egg:
             key = b64encode(self.line.encode('utf-8')).decode()
             target_dir = op.join(suite.parser.directory, '{}+{}'.format(self.egg, key))
@@ -190,7 +190,7 @@ class CustomReq(object):
                 if getattr(installation, 'line', None) == self.line
             ]
         else:
-            loc_dist = self.locate(suite)
+            loc_dist = self.locate(suite, prereleases=prereleases)
             ready = [
                 installation
                 for installation in (installed or [])
@@ -280,7 +280,7 @@ class RequirementState(object):
         latest = self.requirement.locate(suite, prereleases=prereleases)
         if not dist or pkg_resources.parse_version(latest.version) > pkg_resources.parse_version(dist.version):
             print_message('Upgrade to', latest)
-            dist = self.requirement.locate_and_install(suite, installed=self.get_installed())
+            dist = self.requirement.locate_and_install(suite, installed=self.get_installed(), prereleases=prereleases)
         # Anyway use latest available dist
         self.frozen = dist.version
         self.installed.append(dist)
@@ -335,6 +335,7 @@ class RequirementState(object):
         dist.activate()
         pkg_resources.working_set.add_entry(dist.location)
         # find end execute *.pth
+        sitedir = dist.location  # some PTH search for sitedir
         for filename in os.listdir(dist.location):
             if not filename.endswith('pth'):
                 continue
