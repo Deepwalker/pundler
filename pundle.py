@@ -53,8 +53,8 @@ def parse_file(filename):
                 shlex.split(line)
                 for line in f
                 if line.strip() and not line.startswith('#') and not line.startswith('-')
-                ])
-            ]
+            ])
+        ]
     return res
 
 
@@ -335,7 +335,7 @@ class RequirementState(object):
         dist.activate()
         pkg_resources.working_set.add_entry(dist.location)
         # find end execute *.pth
-        sitedir = dist.location  # some PTH search for sitedir
+        sitedir = dist.location  # noqa some PTH search for sitedir
         for filename in os.listdir(dist.location):
             if not filename.endswith('pth'):
                 continue

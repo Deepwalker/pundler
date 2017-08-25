@@ -1,12 +1,38 @@
 from pundle import Parser
 
+from .lib import fake_parse
 
-def test_parser(mocker):
-    parser_args = {
-        'requirements_files': {'': 'requirements.txt'},
-        'frozen_files': {'': 'frozen.txt'},
-    }
-    mocker.patch('pundle.parse_file')
-    parser = Parser(**parser_args)
+
+PARSER_ARGS = {
+    'requirements_files': {'': 'requirements.txt'},
+    'frozen_files': {'': 'frozen.txt'},
+}
+
+
+def test_need_freeze(mocker):
+    parse_file = fake_parse({
+        'requirements.txt': ['trafaret'],
+        'frozen.txt': [],
+    })
+    mocker.patch('pundle.parse_file', new_callable=lambda: parse_file)
+    mocker.patch('pundle.op.exists')
+    mocker.patch('pundle.os.listdir')
+    parser = Parser(**PARSER_ARGS)
     suite = parser.create_suite()
     print(suite)
+    assert suite.need_freeze() == True
+
+
+def test_frozen(mocker):
+    parse_file = fake_parse({
+        'requirements.txt': ['trafaret'],
+        'frozen.txt': ['trafaret==0.1'],
+    })
+    mocker.patch('pundle.parse_file', new_callable=lambda: parse_file)
+    mocker.patch('pundle.op.exists')
+    mocker.patch('pundle.os.listdir')
+    parser = Parser(**PARSER_ARGS)
+    suite = parser.create_suite()
+    print(suite)
+    assert suite.need_freeze() == False
+    assert suite.need_install() == True
