@@ -46,15 +46,20 @@ def python_version_string():
 
 
 def parse_file(filename):
+    res = []
     with open(filename) as f:
-        res = [
-            req[0] for req in
-            filter(None, [
-                shlex.split(line)
-                for line in f
-                if line.strip() and not line.startswith('#') and not line.startswith('-')
-            ])
-        ]
+        for line in f:
+            s = line.strip()
+            if s and not s.startswith('#'):
+                if s.startswith('-r'):
+                    continue
+                if s.startswith('-e '):
+                    s = s[3:]
+                if parse_vcs_requirement(s):
+                    res.append(s)
+                else:
+                    req = shlex.split(s, comments=True)
+                    res.append(req[0])
     return res
 
 
@@ -72,8 +77,15 @@ def parse_vcs_requirement(req):
     parsed = dict(parse_qsl(parsed_url.fragment))
     if 'egg' not in parsed:
         return None
-    egg = parsed['egg'].split('-')
-    return egg[0], req, egg[1] if len(egg) > 1 else None
+    egg = parsed['egg'].rsplit('-', 1)
+    if len(egg) > 1:
+        try:
+            pkg_resources.SetuptoolsVersion(egg[1])
+        except pkg_resources._vendor.packaging.version.InvalidVersion:
+            return parsed['egg'], req, None
+        return egg[0], req, egg[1]
+    else:
+        return parsed['egg'], req, None
 
 
 def parse_frozen_vcs(req):
@@ -370,7 +382,7 @@ class Suite(object):
         self.envs = envs
         self.urls = urls or ['https://pypi.python.org/simple/']
         if 'PIP_EXTRA_INDEX_URL' in os.environ:
-            self.urls.insert(0, os.environ['PIP_EXTRA_INDEX_URL'])
+            self.urls.append(os.environ['PIP_EXTRA_INDEX_URL'])
         self.locators = []
         for url in self.urls:
             self.locators.append(
