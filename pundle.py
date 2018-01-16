@@ -391,6 +391,16 @@ class Suite(object):
         self.locators.append(locators.JSONLocator(scheme='legacy'))
         self.locator = AggregatingLocator(self.locators)
 
+    def use(self, key):
+        """For single mode
+        You can call suite.use('arrow') and then `import arrow`
+
+        :key: package name
+        """
+        self.adjust_with_req(CustomReq(key, ''))
+        self.install()
+        self.activate_all()
+
     def locate(self, *a, **kw):
         return self.locator.locate(*a, **kw)
 
@@ -403,9 +413,13 @@ class Suite(object):
     def required_states(self):
         return [state for state in self.states.values() if state.requirement]
 
-    def need_freeze(self):
+    def need_freeze(self, verbose=False):
         self.install(install=False)
         not_correct = not all(state.has_correct_freeze() for state in self.required_states())
+        if not_correct and verbose:
+            for state in self.required_states():
+                if not state.has_correct_freeze():
+                    print(state.key, 'have not frozen, installed', state.installed)
         # TODO
         # unneeded = any(state.frozen for state in self.states.values() if not state.requirement)
         # if unneeded:
@@ -458,7 +472,7 @@ class Suite(object):
 
 
 class Parser(object):
-    def __init__(self, directory='Pundledir', requirements_files=None, frozen_files='frozen.txt', package=None):
+    def __init__(self, directory='Pundledir', requirements_files=None, frozen_files={'': 'frozen.txt'}, package=None):
         self.directory = directory
         self.requirements_files = requirements_files
         self.frozen_files = frozen_files
@@ -530,11 +544,12 @@ class Parser(object):
                     else:
                         all_requirements[req.key] = req
             return all_requirements
-        else:
+        elif self.package:
             pkg = next(pkg_resources.find_distributions(self.package), None)
             if pkg is None:
                 raise PundleException('There is no requirements.txt nor setup.py')
             return dict((req.key, CustomReq(str(req), '', source='setup.py')) for req in pkg.requires())
+        return {}
 
 
 # Utilities
@@ -565,7 +580,7 @@ def find_all_prefixed_files(directory, prefix):
 def create_parser_parameters():
     base_path = search_files_upward()
     if not base_path:
-        return None
+        raise PundleException('Can not find requirements.txt nor setup.py')
     py_version_path = python_version_string()
     pundledir_base = os.environ.get('PUNDLEDIR') or op.join(op.expanduser('~'), '.pundledir')
     if op.exists(op.join(base_path, 'requirements.txt')):
@@ -624,7 +639,7 @@ def activate():
     if not parser_kw:
         raise PundleException('Can`t create parser parameters')
     suite = Parser(**parser_kw).create_suite()
-    if suite.need_freeze():
+    if suite.need_freeze(verbose=True):
         raise PundleException('frozen file is outdated')
     if suite.need_install():
         raise PundleException('Some dependencies not installed')
@@ -909,6 +924,23 @@ def show_requirements():
             print(name, 'frozen:', state.frozen, 'required:', state.requirement.req if state.requirement.req else 'VCS')
 
 
+# Single mode that you can use in console
+_single_mode_suite = {}
+
+
+def single_mode():
+    if not _single_mode_suite:
+        py_version_path = python_version_string()
+        pundledir_base = os.environ.get('PUNDLEDIR') or op.join(op.expanduser('~'), '.pundledir')
+        directory = op.join(pundledir_base, py_version_path)
+        _single_mode_suite['cache'] = Parser(directory=directory).create_suite()
+    return _single_mode_suite['cache']
+
+
+def use(key):
+    suite = single_mode()
+    suite.use(key)
+
+
 if __name__ == '__main__':
-    # main()
     CmdRegister.main()

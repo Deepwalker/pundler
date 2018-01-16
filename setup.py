@@ -13,7 +13,7 @@ def read(fname):
 
 setupconf = dict(
     name='pundle',
-    version='0.7.3',
+    version='0.8.0',
     license='BSD',
     url='https://github.com/Deepwalker/pundler/',
     author='Deepwalker',
