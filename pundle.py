@@ -10,6 +10,7 @@ import platform
 import os.path as op
 import os
 from os import makedirs
+import stat
 import tempfile
 import shutil
 import subprocess
@@ -82,10 +83,10 @@ def parse_vcs_requirement(req):
         try:
             pkg_resources.SetuptoolsVersion(egg[1])
         except pkg_resources._vendor.packaging.version.InvalidVersion:
-            return parsed['egg'], req, None
-        return egg[0], req, egg[1]
+            return parsed['egg'].lower(), req, None
+        return egg[0].lower(), req, egg[1]
     else:
-        return parsed['egg'], req, None
+        return parsed['egg'].lower(), req, None
 
 
 def parse_frozen_vcs(req):
@@ -99,7 +100,8 @@ class VCSDist(object):
     def __init__(self, directory):
         self.dir = directory
         name = op.split(directory)[-1]
-        self.key, encoded = name.split('+', 1)
+        key, encoded = name.split('+', 1)
+        self.key = key.lower()
         self.line = b64decode(encoded).decode('utf-8')
         egg, req, version = parse_vcs_requirement(self.line)
         version = version or '0.0.0'
@@ -419,7 +421,15 @@ class Suite(object):
         if not_correct and verbose:
             for state in self.required_states():
                 if not state.has_correct_freeze():
-                    print(state.key, 'have not frozen, installed', state.installed)
+                    print(
+                        state.key,
+                        'Need',
+                        state.requirement,
+                        'have not be frozen',
+                        state.frozen,
+                        ', installed',
+                        state.installed
+                    )
         # TODO
         # unneeded = any(state.frozen for state in self.states.values() if not state.requirement)
         # if unneeded:
@@ -885,8 +895,15 @@ def cmd_env():
     subprocess.call(sys.argv[2:], env=aug_env)
 
 
+ENTRY_POINT_TEMPLATE = '''#! /usr/bin/env python
+import pundle; pundle.activate()
+pundle.entry_points()['{entry_point}'].get_entry_info('console_scripts', '{entry_point}').load(require=False)()
+'''
+
+
 @CmdRegister.cmdline('linkall')
 def link_all():
+    "links all packages to `.pundle_local` dir"
     local_dir = '.pundle_local'
     suite = activate()
 
@@ -910,6 +927,18 @@ def link_all():
                     continue
                 os.remove(sym.path)
             os.symlink(dir_entry.path, dest_path)
+    # create entry_points binaries
+    try:
+        makedirs(os.path.join(local_dir, 'bin'))
+    except OSError:
+        pass
+    for bin_name, entry_point in entry_points().items():
+        bin_filename = os.path.join(local_dir, 'bin', bin_name)
+        open(bin_filename, 'w').write(ENTRY_POINT_TEMPLATE.format(entry_point=bin_name))
+        file_stat = os.stat(bin_filename)
+        os.chmod(bin_filename, file_stat.st_mode | stat.S_IEXEC)
+    local_dir_info.pop('bin')
+
     # remove extra links
     for de in local_dir_info:
         os.remove(de.path)
@@ -917,7 +946,7 @@ def link_all():
 
 @CmdRegister.cmdline('show_requirements')
 def show_requirements():
-    "Shows details requirements info"
+    "shows details requirements info"
     suite = activate()
     for name, state in suite.states.items():
         if state.requirement:
@@ -925,10 +954,12 @@ def show_requirements():
 
 
 # Single mode that you can use in console
-_single_mode_suite = {}
+_single_mode_suite = {}  # cache variable to keep current suite for single_mode
 
 
 def single_mode():
+    """ Create, cache and return Suite instance for single_mode.
+    """
     if not _single_mode_suite:
         py_version_path = python_version_string()
         pundledir_base = os.environ.get('PUNDLEDIR') or op.join(op.expanduser('~'), '.pundledir')
@@ -938,6 +969,8 @@ def single_mode():
 
 
 def use(key):
+    """ Installs `key` requirement, like `django==1.11` or just `django`
+    """
     suite = single_mode()
     suite.use(key)
 
