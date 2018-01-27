@@ -33,6 +33,7 @@ How to
 ------
 
 Install:
+
 	> pip install pundle
 
 or just place `pundle.py` where python can find it
@@ -42,19 +43,23 @@ You can pin versions if you need it, or just place package name. Pundle will
 pin it anyway as well as all of it dependencies.
 
 Reveal all dependencies, pin versions, download and install everything:
+
 	> python -m pundle
 
 Where actually it will install? Pundle use special folder `.pundledir/python-version/package-name-version`
 for every seperate package and version.
 
 To make it short create alias:
+
 	alias pundle='/usr/bin/env python -m pundle'
 	pundle install
 
 After packages install, frozen/pinned, we want to use them, you know, import, right?
+
 	import pundle; pundle.activate()
 
 Or we can try to use pundle features:
+
 	# to execute entry point
 	pundle exec some_package_entry_point
 	# to run python script
@@ -63,6 +68,7 @@ Or we can try to use pundle features:
 	pundle module some.my.module
 
 And you can use pundle to expirement in python shell:
+
 	>>> import pundle
 	>>> pundle.use('django==1.11.1')  # will download and install django
 	>>> import django
@@ -74,12 +80,15 @@ More usage info
 ---------------
 
 Upgrade package:
+
 	pundle upgrade django
 
 Upgrade all packages:
+
 	pundle upgrade
 
 List of all entry points:
+
 	pundle entry_points
 
 
