@@ -4,9 +4,11 @@ Pundle
 [![PyPI](https://img.shields.io/pypi/v/pundle.svg?style=flat-square)](https://pypi.python.org/pypi/pundle)
 [![PyPI](https://img.shields.io/pypi/l/pundle.svg?style=flat-square)](https://pypi.python.org/pypi/pundle)
 
-New
----
 
+Changelog
+---------
+
+- New setup.py support with mocking of setuptools.setup
 - Added python shell `try package` feature. To use it use `pundle.use("package_name==0.1")`. Version is optional.
 - Added environments support. To use it just make files like `requirement.txt`, `requirements_dev.txt`, `requirements_test.txt`.
   To activate env use like `PUNDLEENV=dev pundle ...`
