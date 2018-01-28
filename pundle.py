@@ -483,7 +483,7 @@ class Suite(object):
 
 
 class Parser(object):
-    """ Gather environment info, requirements,
+    """Gather environment info, requirements,
     frozen packages and create Suite object
     """
     def __init__(
@@ -603,6 +603,9 @@ class Parser(object):
 
 # Utilities
 def get_info_from_setup(path):
+    """Mock setuptools.setup(**kargs) to get
+    package information about requirements and extras
+    """
     preserve = {}
 
     def _save_info(**setup_args):

@@ -1,6 +1,7 @@
 Pundle
 ======
 
+[![CircleCI](https://circleci.com/gh/Deepwalker/pundler.svg?style=svg)](https://circleci.com/gh/Deepwalker/pundler)
 [![PyPI](https://img.shields.io/pypi/v/pundle.svg?style=flat-square)](https://pypi.python.org/pypi/pundle)
 [![PyPI](https://img.shields.io/pypi/l/pundle.svg?style=flat-square)](https://pypi.python.org/pypi/pundle)
 
