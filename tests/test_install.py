@@ -50,3 +50,18 @@ def test_vcs(mocker):
     suite = parser.create_suite()
     print(suite)
     assert suite.need_freeze() == True
+
+
+def test_vcs_frozen(mocker):
+    parse_file = fake_parse({
+        'requirements.txt': ['git+https://github.com/karanlyons/django-save-the-change@e48502d2568d76bd9c7093f4c002a5b0061bc468#egg=django-save-the-change'],
+        'frozen.txt': ['git+https://github.com/karanlyons/django-save-the-change@e48502d2568d76bd9c7093f4c002a5b0061bc468#egg=django-save-the-change'],
+    })
+    mocker.patch('pundle.parse_file', new_callable=lambda: parse_file)
+    mocker.patch('pundle.op.exists')
+    mocker.patch('pundle.os.listdir')
+    parser = Parser(**PARSER_ARGS)
+    suite = parser.create_suite()
+    print(suite)
+    assert suite.need_freeze() == False
+    assert suite.need_install() == True

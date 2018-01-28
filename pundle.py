@@ -476,22 +476,43 @@ class Suite(object):
 
     def save_frozen(self):
         "Saves frozen files to disk"
-        for env, frozen_file in self.parser.frozen_files.items():
+        for env in self.parser.envs():
+            frozen_file = self.parser.get_frozen_file(env)
             with open(frozen_file, 'w') as f:
                 f.write(self.dump_frozen(env))
 
 
 class Parser(object):
-    def __init__(self, directory='Pundledir', requirements_files=None, frozen_files={'': 'frozen.txt'}, package=None):
+    """ Gather environment info, requirements,
+    frozen packages and create Suite object
+    """
+    def __init__(
+            self,
+            base_path=None,
+            directory='Pundledir',
+            requirements_files=None,
+            frozen_files={'': 'frozen.txt'},
+            package=None,
+    ):
+        self.base_path = base_path or '.'
         self.directory = directory
         self.requirements_files = requirements_files
         self.frozen_files = frozen_files
         self.package = package
+        self.package_envs = set([''])
 
     def envs(self):
         if self.requirements_files:
             return list(self.requirements_files.keys()) or ['']
+        elif self.package:
+            return self.package_envs
         return ['']
+
+    def get_frozen_file(self, env):
+        if env in self.frozen_files:
+            return self.frozen_files[env]
+        else:
+            return os.path.join(self.base_path, 'frozen_%s.txt' % env)
 
     def create_suite(self):
         reqs, freezy, diry = self.parse_requirements(), self.parse_frozen(), self.parse_directory()
@@ -526,7 +547,8 @@ class Parser(object):
 
     def parse_frozen(self):
         frozen_versions = {}
-        for frozen_file in self.frozen_files.values():
+        for env in self.envs():
+            frozen_file = self.get_frozen_file(env)
             if op.exists(frozen_file):
                 frozen = [
                     (parse_frozen_vcs(line) or line.split('=='))
@@ -555,14 +577,44 @@ class Parser(object):
                         all_requirements[req.key] = req
             return all_requirements
         elif self.package:
-            pkg = next(pkg_resources.find_distributions(self.package), None)
-            if pkg is None:
+            setup_info = get_info_from_setup(self.package)
+            if setup_info is None:
                 raise PundleException('There is no requirements.txt nor setup.py')
-            return dict((req.key, CustomReq(str(req), '', source='setup.py')) for req in pkg.requires())
+            install_requires = setup_info.get('install_requires') or []
+            reqs = [
+                CustomReq(str(req), '', source='setup.py')
+                for req in install_requires
+            ]
+            requirements = dict((req.key, req) for req in reqs)
+            # we use `feature` as environment for pundle
+            extras_require = (setup_info.get('extras_require') or {})
+            for feature, feature_requires in extras_require.items():
+                for req_line in feature_requires:
+                    req = CustomReq(req_line, feature, source='setup.py')
+                    # if this req already in dict, then add our feature as env
+                    if req.key in requirements:
+                        requirements[req.key].add_env(feature)
+                    else:
+                        requirements[req.key] = req
+                self.package_envs.add(feature)
+            return requirements
         return {}
 
 
 # Utilities
+def get_info_from_setup(path):
+    preserve = {}
+
+    def _save_info(**setup_args):
+        preserve['args'] = setup_args
+
+    import setuptools
+    setuptools.setup = _save_info
+    import runpy
+    runpy.run_path(os.path.join(path, 'setup.py'), run_name='__main__')
+    return preserve.get('args')
+
+
 def search_files_upward(start_path=None):
     "Search for requirements.txt upward"
     if not start_path:
@@ -599,6 +651,7 @@ def create_parser_parameters():
         requirements_files = {}
     envs = list(requirements_files.keys()) or ['']
     params = {
+        'base_path': base_path,
         'frozen_files': {
             env: op.join(base_path, 'frozen_%s.txt' % env if env else 'frozen.txt')
             for env in envs
