@@ -67,13 +67,33 @@ Or we can try to use pundle features:
 	# run module like python -m
 	pundle module some.my.module
 
-And you can use pundle to expirement in python shell:
+To add VCS to `requirements.txt` use `git+url#egg=my_package-0.1.11` form.
+
+
+Python shell usage
+------------------
+
+You can use pundle to expirement in python shell:
 
 	>>> import pundle
 	>>> pundle.use('django==1.11.1')  # will download and install django
 	>>> import django
 
-To add VCS to `requirements.txt` use `git+url#egg=my_package-0.1.11` form.
+
+Environments
+------------
+
+Pundle support environments. You can create seperate requirements file with suffix like
+`requirements_dev.txt`. Pundle will create `frozen_dev.txt` that will track common
+requirements + dev requirements.
+
+To use `dev` environment use `PUNDLEENV=dev` environment variable:
+
+	bash> PUNDLEENV=dev pundle run myscript.py
+
+or common usage:
+
+	bash> PUNDLEENV=test pundle exec pytest
 
 
 More usage info
