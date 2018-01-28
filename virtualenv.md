@@ -1,4 +1,4 @@
-Virtalenv – the worst thing ever happened to python.
+Virtualenv – the worst thing ever happened to python.
 ====================================================
 
     Typo-typa, click-clack, `venv ve` etc
