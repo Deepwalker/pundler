@@ -146,8 +146,9 @@ Do not hesitate to `pundle help` ;)
 Howto
 -----
 
-Q: How to use custom index url or extra index? A: use
-PIP_EXTRA_INDEX_URL or any other `pip` environment variables.
+Q: How to use custom index url or extra index?
+
+A: use PIP_EXTRA_INDEX_URL or any other `pip` environment variables.
 
 .. |circleci_build| image:: https://circleci.com/gh/Deepwalker/pundler.svg?style=svg
    :target: https://circleci.com/gh/Deepwalker/pundler
