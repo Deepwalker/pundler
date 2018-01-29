@@ -19,7 +19,7 @@ setupconf = dict(
     author='Deepwalker',
     author_email='krivushinme@gmail.com',
     description=('Requirements management tool.'),
-    long_description=read('README.md'),
+    long_description=read('README.rst'),
     keywords='bundler virtualenv pip install package setuptools',
 
     py_modules=['pundle'],
