@@ -1,20 +1,21 @@
+======
 Pundle
 ======
 
-|CircleCI| |PyPI| |PyPI|
+|circleci_build| |pypi_version| |pypi_license|
 
 Changelog
 ---------
 
 -  New setup.py support with mocking of setuptools.setup
--  Added python shell ``try package`` feature. To use it use
-   ``pundle.use("package_name==0.1")``. Version is optional.
+-  Added python shell `try package` feature. To use it use
+   `pundle.use("package_name==0.1")`. Version is optional.
 -  Added environments support. To use it just make files like
-   ``requirement.txt``, ``requirements_dev.txt``,
-   ``requirements_test.txt``. To activate env use like
-   ``PUNDLEENV=dev pundle ...``
+   `requirement.txt`, `requirements_dev.txt`,
+   `requirements_test.txt`. To activate env use like
+   `PUNDLEENV=dev pundle ...`
 -  Added VCS support for urls like
-   ``git+https://github.com/mitsuhiko/jinja2.git@85820fceb83569df62fa5e6b9b0f2f76b7c6a3cf#egg=jinja2-2.8.0``.
+   `git+https://github.com/mitsuhiko/jinja2.git@85820fceb83569df62fa5e6b9b0f2f76b7c6a3cf#egg=jinja2-2.8.0`.
    Push exactly like this formatted str to requirements.txt
 -  Added initial support for setup.py requirements. Helpful for package
    development.
@@ -28,7 +29,7 @@ garbage and we must get rid of it.
 -  Pundle install all packages and its versions to special folder. And
    mount pinned, frozen versions on activate step.
 -  After that you program will use exactly this versions that were
-   pinned in ``frozen.txt``.
+   pinned in `frozen.txt`.
 -  If you change branch or edit requirements.txt or frozen.txt, pundle
    will note you about you need make install new packages or freeze
    newly added packages. It will not let you use packages that have not
@@ -40,29 +41,29 @@ How to
 
 Install:
 
-::
+.. code-block:: bash
 
     > pip install pundle
 
-or just place ``pundle.py`` where python can find it
+or just place `pundle.py` where python can find it
 
-Create ``requirements.txt`` or ``setup.py`` (we will support .toml a bit
+Create `requirements.txt` or `setup.py` (we will support .toml a bit
 later). You can pin versions if you need it, or just place package name.
 Pundle will pin it anyway as well as all of it dependencies.
 
 Reveal all dependencies, pin versions, download and install everything:
 
-::
+.. code-block:: bash
 
     > python -m pundle
 
 Where actually it will install? Pundle use special folder
-``.pundledir/python-version/package-name-version`` for every seperate
+`.pundledir/python-version/package-name-version` for every seperate
 package and version.
 
 To make it short create alias:
 
-::
+.. code-block:: bash
 
     alias pundle='/usr/bin/env python -m pundle'
     pundle install
@@ -76,7 +77,7 @@ import, right?
 
 Or we can try to use pundle features:
 
-::
+.. code-block:: bash
 
     # to execute entry point
     pundle exec some_package_entry_point
@@ -85,7 +86,7 @@ Or we can try to use pundle features:
     # run module like python -m
     pundle module some.my.module
 
-To add VCS to ``requirements.txt`` use ``git+url#egg=my_package-0.1.11``
+To add VCS to `requirements.txt` use `git+url#egg=my_package-0.1.11`
 form.
 
 Python shell usage
@@ -103,11 +104,11 @@ Environments
 ------------
 
 Pundle support environments. You can create seperate requirements file
-with suffix like ``requirements_dev.txt``. Pundle will create
-``frozen_dev.txt`` that will track common requirements + dev
+with suffix like `requirements_dev.txt`. Pundle will create
+`frozen_dev.txt` that will track common requirements + dev
 requirements.
 
-To use ``dev`` environment use ``PUNDLEENV=dev`` environment variable:
+To use `dev` environment use `PUNDLEENV=dev` environment variable:
 
 .. code-block:: bash
 
@@ -140,17 +141,17 @@ List of all entry points:
 
     pundle entry_points
 
-Do not hesitate to ``pundle help`` ;)
+Do not hesitate to `pundle help` ;)
 
 Howto
 -----
 
 Q: How to use custom index url or extra index? A: use
-PIP_EXTRA_INDEX_URL or any other ``pip`` environment variables.
+PIP_EXTRA_INDEX_URL or any other `pip` environment variables.
 
-.. |CircleCI| image:: https://circleci.com/gh/Deepwalker/pundler.svg?style=svg
+.. |circleci_build| image:: https://circleci.com/gh/Deepwalker/pundler.svg?style=svg
    :target: https://circleci.com/gh/Deepwalker/pundler
-.. |PyPI| image:: https://img.shields.io/pypi/v/pundle.svg?style=flat-square
+.. |pypi_version| image:: https://img.shields.io/pypi/v/pundle.svg?style=flat-square
    :target: https://pypi.python.org/pypi/pundle
-.. |PyPI| image:: https://img.shields.io/pypi/l/pundle.svg?style=flat-square
+.. |pypi_license| image:: https://img.shields.io/pypi/l/pundle.svg?style=flat-square
    :target: https://pypi.python.org/pypi/pundle
