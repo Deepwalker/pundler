@@ -100,6 +100,19 @@ You can use pundle to expirement in python shell:
     >>> pundle.use('django==1.11.1')  # will download and install django
     >>> import django
 
+Or you can use it in script:
+
+.. code-block:: python
+
+    >>> import pundle
+    >>> pundle.use('django')
+    >>> pundle.use('arrow')
+    >>> pundle.use('trafaret')
+    >>>
+    >>> import django
+    >>> import arrow
+    >>> import trafaret
+
 Environments
 ------------
 
