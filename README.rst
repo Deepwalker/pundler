@@ -89,6 +89,20 @@ Or we can try to use pundle features:
 To add VCS to `requirements.txt` use `git+url#egg=my_package-0.1.11`
 form.
 
+
+Pundle console
+--------------
+
+To start console with Pundle activated use
+
+.. code-block:: bash
+
+    > pundle console [ipython|ptpython|bpython]
+
+You will have `pundle_suite` object inserted to environment. You can use it
+to call `pundle_suite.use("trafaret_schema")` for example.
+
+
 Python shell usage
 ------------------
 

@@ -878,7 +878,7 @@ def cmd_info():
             print('     None')
 
 
-def run_console(suite):
+def run_console(glob):
     import readline
     import rlcompleter
     import atexit
@@ -893,10 +893,8 @@ def run_console(suite):
 
     atexit.register(save_history)
 
-    readline.set_completer(rlcompleter.Completer(globals()).complete)
+    readline.set_completer(rlcompleter.Completer(glob).complete)
     readline.parse_and_bind("tab: complete")
-    glob = globals()
-    glob['pundle_suite'] = suite
     code.InteractiveConsole(locals=glob).interact()
 
 
@@ -904,18 +902,21 @@ def run_console(suite):
 def cmd_console():
     "[ipython|bpython|ptpython] starts python console with activated pundle environment"
     suite = activate()
+    glob = {
+        'pundle_suite': suite,
+    }
     interpreter = sys.argv[2] if len(sys.argv) > 2 else None
     if not interpreter:
-        run_console(suite)
+        run_console(glob)
     elif interpreter == 'ipython':
         from IPython import embed
         embed()
     elif interpreter == 'ptpython':
         from ptpython.repl import embed
-        embed(globals(), locals())
+        embed(glob, {})
     elif interpreter == 'bpython':
         from bpython import embed
-        embed()
+        embed(glob)
     else:
         raise PundleException('Unknown interpreter: {}. Choose one of None, ipython, bpython, ptpython.')
 
