@@ -147,6 +147,10 @@ or common usage:
 
     bash> PUNDLEENV=test pundle exec pytest
 
+For ``setup.py`` file pundle uses ``extras_require`` as environments. For example if
+you have ``extras_require = {'test': ['pylint', 'pyflakes']}`` then you can use
+``pylint`` with ``PUNDLEENV=test pundle exec pylint``.
+
 More usage info
 ---------------
 
