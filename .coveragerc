@@ -4,5 +4,5 @@ omit =
     tests/*
 
 [report]
-fail_under = 30
+fail_under = 42
 show_missing = True

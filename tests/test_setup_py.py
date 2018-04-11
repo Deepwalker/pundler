@@ -1,4 +1,4 @@
-from pundle import Parser
+from pundle import create_parser
 
 from .lib import fake_parse
 
@@ -25,7 +25,7 @@ def test_parse_setup_need_freeze(mocker):
     mocker.patch('pundle.op.exists')
     mocker.patch('pundle.os.listdir')
     mocker.patch('pundle.get_info_from_setup', new_callable=lambda: (lambda x: setup_data))
-    parser = Parser(**PARSER_ARGS)
+    parser = create_parser(**PARSER_ARGS)
     suite = parser.create_suite()
     print(suite)
     assert suite.need_freeze() == True
@@ -46,7 +46,7 @@ def test_parse_setup_frozen(mocker):
     mocker.patch('pundle.op.exists')
     mocker.patch('pundle.os.listdir')
     mocker.patch('pundle.get_info_from_setup', new_callable=lambda: (lambda x: setup_data))
-    parser = Parser(**PARSER_ARGS)
+    parser = create_parser(**PARSER_ARGS)
     suite = parser.create_suite()
     print(suite)
     assert suite.need_freeze() == False

@@ -30,6 +30,11 @@ try:
 except NameError:
     str_types = (str, bytes)
 
+try:
+    pkg_resources_parse_version = pkg_resources.SetuptoolsVersion
+except AttributeError:
+    pkg_resources_parse_version = pkg_resources.packaging.version.Version
+
 
 def print_message(*a, **kw):
     print(*a, **kw)
@@ -40,7 +45,10 @@ class PundleException(Exception):
 
 
 def python_version_string():
-    version_info = sys.pypy_version_info if platform.python_implementation() == 'PyPy' else sys.version_info
+    if platform.python_implementation() == 'PyPy':
+        version_info = sys.pypy_version_info
+    else:
+        version_info = sys.version_info
     version_string = '{v.major}.{v.minor}.{v.micro}'.format(v=version_info)
     build, _ = platform.python_build()
     return '{}-{}-{}'.format(platform.python_implementation(), version_string, build)
@@ -81,7 +89,7 @@ def parse_vcs_requirement(req):
     egg = parsed['egg'].rsplit('-', 1)
     if len(egg) > 1:
         try:
-            pkg_resources.SetuptoolsVersion(egg[1])
+            pkg_resources_parse_version(egg[1])
         except pkg_resources._vendor.packaging.version.InvalidVersion:
             return parsed['egg'].lower(), req, None
         return egg[0].lower(), req, egg[1]
@@ -105,7 +113,7 @@ class VCSDist(object):
         self.line = b64decode(encoded).decode('utf-8')
         egg, req, version = parse_vcs_requirement(self.line)
         version = version or '0.0.0'
-        self.hashcmp = (pkg_resources.SetuptoolsVersion(version), -1, egg, self.dir)
+        self.hashcmp = (pkg_resources_parse_version(version), -1, egg, self.dir)
         self.version = self.line
         self.pkg_resource = next(iter(pkg_resources.find_distributions(self.dir, True)), None)
         self.location = self.pkg_resource.location
@@ -245,6 +253,9 @@ class CustomReq(object):
 
 
 class RequirementState(object):
+    """Holds requirement state, like what version do we have installed, is
+    some version frozen or not, what requirement constrains do we have.
+    """
     def __init__(self, key, req=None, frozen=None, installed=None):
         self.key = key
         self.requirement = req
@@ -351,7 +362,7 @@ class RequirementState(object):
         # find end execute *.pth
         sitedir = dist.location  # noqa some PTH search for sitedir
         for filename in os.listdir(dist.location):
-            if not filename.endswith('pth'):
+            if not filename.endswith('.pth'):
                 continue
             try:
                 for line in open(op.join(dist.location, filename)):
@@ -368,7 +379,7 @@ class AggregatingLocator(object):
 
     def locate(self, req, **kw):
         for locator in self.locators:
-            print('try', locator, 'for', req)
+            print_message('try', locator, 'for', req)
             revealed = locator.locate(req, **kw)
             if revealed:
                 return revealed
@@ -455,12 +466,12 @@ class Suite(object):
             print('Check', state.requirement.req)
             state.reveal_requirements(self, upgrade=True, prereleases=prereleases)
 
-    def dump_frozen(self, env):
-        return '\n'.join(sorted(
-            state.frozen_dump()
+    def get_frozen_states(self, env):
+        return [
+            state
             for state in self.required_states()
             if state.requirement and env in state.requirement.envs
-        )) + '\n'
+        ]
 
     def need_install(self):
         return not all(state.frozen_dist() for state in self.states.values() if state.frozen)
@@ -477,9 +488,7 @@ class Suite(object):
     def save_frozen(self):
         "Saves frozen files to disk"
         for env in self.parser.envs():
-            frozen_file = self.parser.get_frozen_file(env)
-            with open(frozen_file, 'w') as f:
-                f.write(self.dump_frozen(env))
+            self.parser.save_frozen(self.get_frozen_states(env), env)
 
 
 class Parser(object):
@@ -561,44 +570,104 @@ class Parser(object):
         return frozen_versions
 
     def parse_requirements(self):
-        if self.requirements_files:
-            all_requirements = {}
-            for env, req_file in self.requirements_files.items():
-                requirements = parse_file(req_file)
-                if env:
-                    source = 'requirements %s file' % env
+        all_requirements = {}
+        for env, req_file in self.requirements_files.items():
+            requirements = parse_file(req_file)
+            if env:
+                source = 'requirements %s file' % env
+            else:
+                source = 'requirements file'
+            for req in (CustomReq(line, env, source=source) for line in requirements):
+                if req.key in all_requirements:
+                    # if requirements exists in other env, then add this env too
+                    all_requirements[req.key].add_env(env)
                 else:
-                    source = 'requirements file'
-                for req in (CustomReq(line, env, source=source) for line in requirements):
-                    if req.key in all_requirements:
-                        # if requirements exists in other env, then add this env too
-                        all_requirements[req.key].add_env(env)
-                    else:
-                        all_requirements[req.key] = req
-            return all_requirements
-        elif self.package:
-            setup_info = get_info_from_setup(self.package)
-            if setup_info is None:
-                raise PundleException('There is no requirements.txt nor setup.py')
-            install_requires = setup_info.get('install_requires') or []
-            reqs = [
-                CustomReq(str(req), '', source='setup.py')
-                for req in install_requires
-            ]
-            requirements = dict((req.key, req) for req in reqs)
-            # we use `feature` as environment for pundle
-            extras_require = (setup_info.get('extras_require') or {})
-            for feature, feature_requires in extras_require.items():
-                for req_line in feature_requires:
-                    req = CustomReq(req_line, feature, source='setup.py')
-                    # if this req already in dict, then add our feature as env
-                    if req.key in requirements:
-                        requirements[req.key].add_env(feature)
-                    else:
-                        requirements[req.key] = req
-                self.package_envs.add(feature)
-            return requirements
+                    all_requirements[req.key] = req
+        return all_requirements
+
+    def save_frozen(self, states, env):
+        data = '\n'.join(sorted(
+            state.frozen_dump()
+            for state in states
+        )) + '\n'
+        frozen_file = self.get_frozen_file(env)
+        with open(frozen_file, 'w') as f:
+            f.write(data)
+
+
+class SingleParser(Parser):
+    def parse_requirements(self):
         return {}
+
+
+class SetupParser(Parser):
+    def parse_requirements(self):
+        setup_info = get_info_from_setup(self.package)
+        if setup_info is None:
+            raise PundleException('There is no requirements.txt nor setup.py')
+        install_requires = setup_info.get('install_requires') or []
+        reqs = [
+            CustomReq(str(req), '', source='setup.py')
+            for req in install_requires
+        ]
+        requirements = dict((req.key, req) for req in reqs)
+        # we use `feature` as environment for pundle
+        extras_require = (setup_info.get('extras_require') or {})
+        for feature, feature_requires in extras_require.items():
+            for req_line in feature_requires:
+                req = CustomReq(req_line, feature, source='setup.py')
+                # if this req already in dict, then add our feature as env
+                if req.key in requirements:
+                    requirements[req.key].add_env(feature)
+                else:
+                    requirements[req.key] = req
+            self.package_envs.add(feature)
+        return requirements
+
+
+class PipfileParser(Parser):
+    def __init__(self, **kw):
+        self.pipfile = kw.pop('pipfile')
+        super(PipfileParser, self).__init__(**kw)
+
+    def parse_requirements(self):
+        import toml
+        info = toml.load(open(self.pipfile))
+        reqs = []
+        for key, details in info['packages'].items():
+            if isinstance(details, str_types):
+                if details != '*':
+                    key = key + details  # details is a version requirement
+            else:
+                raise PundleException('Unsupported Pipfile feature yet %s: %r' % (key, details))
+            reqs.append(CustomReq(key, '', source='Pipfile'))
+        requirements = dict((req.key, req) for req in reqs)
+        return requirements
+
+    def parse_frozen(self):
+        import json
+        try:
+            info = json.load(open(self.pipfile + '.lock'))
+        except Exception:
+            # there is no Pipfile.lock or it is broken
+            return {}
+        frozen_versions = {}
+        for key, details in info['default'].items():
+            frozen_versions[key] = details['version'].lstrip('=')
+        return frozen_versions
+
+    def save_frozen(self, states, env):
+        raise NotImplemented('Pipfile.lock dump not yet implemented')
+
+
+def create_parser(**parser_args):
+    if parser_args.get('requirements_files'):
+        return Parser(**parser_args)
+    elif parser_args.get('package'):
+        return SetupParser(**parser_args)
+    elif parser_args.get('pipfile'):
+        return PipfileParser(**parser_args)
+    return SingleParser(**parser_args)
 
 
 # Utilities
@@ -612,9 +681,11 @@ def get_info_from_setup(path):
         preserve['args'] = setup_args
 
     import setuptools
+    original_setup = setuptools.setup
     setuptools.setup = _save_info
     import runpy
     runpy.run_path(os.path.join(path, 'setup.py'), run_name='__main__')
+    setuptools.setup = original_setup
     return preserve.get('args')
 
 
@@ -622,7 +693,10 @@ def search_files_upward(start_path=None):
     "Search for requirements.txt upward"
     if not start_path:
         start_path = op.abspath(op.curdir)
-    if op.exists(op.join(start_path, 'requirements.txt')) or op.exists(op.join(start_path, 'setup.py')):
+    if any(
+            op.exists(op.join(start_path, filename))
+            for filename in ('requirements.txt', 'setup.py', 'Pipfile')
+    ):
         return start_path
     up_path = op.abspath(op.join(start_path, '..'))
     if op.samefile(start_path, up_path):
@@ -645,7 +719,7 @@ def find_all_prefixed_files(directory, prefix):
 def create_parser_parameters():
     base_path = search_files_upward()
     if not base_path:
-        raise PundleException('Can not find requirements.txt nor setup.py')
+        raise PundleException('Can not find requirements.txt nor setup.py nor Pipfile')
     py_version_path = python_version_string()
     pundledir_base = os.environ.get('PUNDLEDIR') or op.join(op.expanduser('~'), '.pundledir')
     if op.exists(op.join(base_path, 'requirements.txt')):
@@ -665,6 +739,8 @@ def create_parser_parameters():
         params['requirements_files'] = requirements_files
     elif op.exists(op.join(base_path, 'setup.py')):
         params['package'] = base_path
+    elif op.exists(op.join(base_path, 'Pipfile')):
+        params['pipfile'] = op.join(base_path, 'Pipfile')
     else:
         return
     return params
@@ -679,18 +755,18 @@ def create_parser_or_exit():
 
 
 # Commands
-def upgrade_all(*a, **kw):
+def upgrade_all(**kw):
     key = kw.pop('key')
     prereleases = kw.pop('prereleases')
-    suite = Parser(*a, **kw).create_suite()
+    suite = create_parser(**kw).create_suite()
     suite.need_freeze()
     suite.upgrade(key=key, prereleases=prereleases)
     suite.install()
     suite.save_frozen()
 
 
-def install_all(*a, **kw):
-    suite = Parser(*a, **kw).create_suite()
+def install_all(**kw):
+    suite = create_parser(**kw).create_suite()
     if suite.need_freeze() or suite.need_install():
         print_message('Install some packages')
         suite.install()
@@ -704,7 +780,7 @@ def activate():
     parser_kw = create_parser_parameters()
     if not parser_kw:
         raise PundleException('Can`t create parser parameters')
-    suite = Parser(**parser_kw).create_suite()
+    suite = create_parser(**parser_kw).create_suite()
     if suite.need_freeze(verbose=True):
         raise PundleException('frozen file is outdated')
     if suite.need_install():
@@ -771,7 +847,7 @@ def execute(interpreter, cmd, args):
     # clean it
     entries = entry_points()
     if cmd not in entries:
-        print('Script is not found. Check if package is installed, or look at the `pundle entry_points`')
+        print_message('Script is not found. Check if package is installed, or look at the `pundle entry_points`')
         sys.exit(1)
     exc = entries[cmd].get_entry_info('console_scripts', cmd).load(require=False)
     sys.path.insert(0, '')
@@ -848,7 +924,7 @@ def cmd_entry_points():
 def cmd_edit():
     "prints directory path to package"
     parser_kw = create_parser_parameters()
-    suite = Parser(**parser_kw).create_suite()
+    suite = create_parser(**parser_kw).create_suite()
     if suite.need_freeze():
         raise PundleException('%s file is outdated' % suite.parser.frozen_file)
     print(suite.states[sys.argv[2]].frozen_dist().location)
@@ -858,7 +934,7 @@ def cmd_edit():
 def cmd_info():
     "prints info about Pundle state"
     parser_kw = create_parser_parameters()
-    suite = Parser(**parser_kw).create_suite()
+    suite = create_parser(**parser_kw).create_suite()
     if suite.need_freeze():
         print('frozen.txt is outdated')
     else:
@@ -1021,7 +1097,7 @@ def single_mode():
         py_version_path = python_version_string()
         pundledir_base = os.environ.get('PUNDLEDIR') or op.join(op.expanduser('~'), '.pundledir')
         directory = op.join(pundledir_base, py_version_path)
-        _single_mode_suite['cache'] = Parser(directory=directory).create_suite()
+        _single_mode_suite['cache'] = create_parser(directory=directory).create_suite()
     return _single_mode_suite['cache']
 
 
