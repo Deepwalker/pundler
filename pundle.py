@@ -752,20 +752,6 @@ class PipfileParser(Parser):
     def save_frozen(self, states_by_env):
         """Implementation is not complete.
         """
-        default = {}
-        for state in states_by_env['']:
-            default[state.key] = {
-                'version': '==' + state.frozen,
-                'hashes': state.hashes or [],
-            }
-        develop = {}
-        for state in states_by_env['dev']:
-            if '' in state.requirement.envs:
-                continue
-            develop[state.key] = {
-                'version': '==' + state.frozen,
-                'hashes': state.hashes or [],
-            }
         data = self.pipfile_lock_content() or {}
         data.setdefault('_meta', {
             'pipfile-spec': 5,
@@ -773,8 +759,19 @@ class PipfileParser(Parser):
             'sources': self.DEFAULT_PIPFILE_SOURCES,
         })
         data.setdefault('_meta', {}).setdefault('hash', {})['sha256'] = self.hash()
-        data['default'] = default
-        data['develop'] = develop
+        for env, states in states_by_env.items():
+            if env == '':
+                env_key = 'default'
+            elif env == 'dev':
+                env_key = 'develop'
+            else:
+                env_key = env
+            reqs = data.setdefault(env_key, {})
+            for state in states:
+                reqs[state.key] = {
+                    'version': '==' + state.frozen,
+                    'hashes': state.hashes or [],
+                }
         with open(self.pipfile + '.lock', 'w') as f:
             f.write(json.dumps(data, sort_keys=True, indent=4))
 
