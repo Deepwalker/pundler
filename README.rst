@@ -7,6 +7,8 @@ Pundle
 Changelog
 ---------
 
+-  Pipfile initial support. Only strings as versions now.
+   Do not calculates hashes and do not use it yet.
 -  New setup.py support with mocking of setuptools.setup
 -  Added python shell ``try package`` feature. To use it use
    ``pundle.use("package_name==0.1")``. Version is optional.
@@ -35,6 +37,12 @@ garbage and we must get rid of it.
    newly added packages. It will not let you use packages that have not
    bin pinned. You will never fall in situation where you test old
    version of package.
+
+Why not Pipenv, I heard it is "for humans"?
+-----------------------------------------
+
+I don't think that anything that is based on virtualenv can be "for humans". And
+pundle far more friendly and supportive even without all this hype and with one dev.
 
 How to
 ------
