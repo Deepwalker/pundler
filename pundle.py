@@ -16,8 +16,8 @@ import shutil
 import subprocess
 import sys
 import shlex
-import copy
 import json
+import hashlib
 import pkg_resources
 import pip
 
@@ -647,17 +647,43 @@ class SetupParser(Parser):
 
 
 class PipfileParser(Parser):
+    DEFAULT_PIPFILE_SOURCES = [
+        {
+            'name': 'pypi',
+            'url': 'https://pypi.python.org/simple',
+            'verify_ssl': True,
+        },
+    ]
+
     def __init__(self, **kw):
         self.pipfile = kw.pop('pipfile')
         self.pipfile_envs = set([''])
         super(PipfileParser, self).__init__(**kw)
+        # cache
+        self.loaded_pipfile = None
+        self.loaded_pipfile_lock = None
 
     def envs(self):
         return self.pipfile_envs
 
-    def parse_requirements(self):
+    def pipfile_content(self):
         import toml
-        info = toml.load(open(self.pipfile))
+        if self.loaded_pipfile:
+            return self.loaded_pipfile
+        self.loaded_pipfile = toml.load(open(self.pipfile))
+        return self.loaded_pipfile
+
+    def pipfile_lock_content(self):
+        if self.loaded_pipfile_lock:
+            return self.loaded_pipfile_lock
+        try:
+            self.loaded_pipfile_lock = json.load(open(self.pipfile + '.lock'))
+        except Exception:
+            pass
+        return self.loaded_pipfile_lock
+
+    def parse_requirements(self):
+        info = self.pipfile_content()
         all_requirements = {}
         for info_key in info:
             if not info_key.endswith('packages'):
@@ -682,34 +708,46 @@ class PipfileParser(Parser):
         return all_requirements
 
     def parse_frozen(self):
-        try:
-            self.parsed_frozen = json.load(open(self.pipfile + '.lock'))
-        except Exception:
-            # there is no Pipfile.lock or it is broken
+        parsed_frozen = self.pipfile_lock_content()
+        if parsed_frozen is None:
             return {}
         frozen_versions = {}
-        for env in self.parsed_frozen:
+        for env in parsed_frozen:
             if env.startswith('_'):
                 # this is not an env
                 continue
-            for key, details in self.parsed_frozen[env].items():
+            for key, details in parsed_frozen[env].items():
                 frozen_versions[key] = details['version'].lstrip('=')
         return frozen_versions
 
     def parse_frozen_hashes(self):
-        try:
-            self.parsed_frozen = json.load(open(self.pipfile + '.lock'))
-        except Exception:
-            # there is no Pipfile.lock or it is broken
+        parsed_frozen = self.pipfile_lock_content()
+        if parsed_frozen is None:
             return {}
         frozen_versions = {}
-        for env in self.parsed_frozen:
+        for env in parsed_frozen:
             if env.startswith('_'):
                 # this is not an env
                 continue
-            for key, details in self.parsed_frozen[env].items():
+            for key, details in parsed_frozen[env].items():
                 frozen_versions[key] = details.get('hashes', [])
         return frozen_versions
+
+    def hash(self):
+        """Returns the SHA256 of the pipfile's data.
+        From pipfile.
+        """
+        pipfile_content = self.pipfile_content()
+        data = {
+            '_meta': {
+                'sources': pipfile_content.get('sources') or self.DEFAULT_PIPFILE_SOURCES,
+                'requires': pipfile_content.get('requires') or {},
+            },
+            'default': pipfile_content.get('packages') or {},
+            'develop': pipfile_content.get('dev-packages') or {},
+        }
+        content = json.dumps(data, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(content.encode("utf8")).hexdigest()
 
     def save_frozen(self, states_by_env):
         """Implementation is not complete.
@@ -718,27 +756,23 @@ class PipfileParser(Parser):
         for state in states_by_env['']:
             default[state.key] = {
                 'version': '==' + state.frozen,
-                'hashes': state.hashes,
+                'hashes': state.hashes or [],
             }
         develop = {}
         for state in states_by_env['dev']:
+            if '' in state.requirement.envs:
+                continue
             develop[state.key] = {
                 'version': '==' + state.frozen,
-                'hashes': state.hashes,
+                'hashes': state.hashes or [],
             }
-
-        data = copy.deepcopy(self.parsed_frozen)
+        data = self.pipfile_lock_content() or {}
         data.setdefault('_meta', {
-            "pipfile-spec": 5,
-            "requires": {},
-            "sources": [
-                {
-                    "name": "pypi",
-                    "url": "https://pypi.python.org/simple",
-                    "verify_ssl": True
-                }
-            ]
+            'pipfile-spec': 5,
+            'requires': {},
+            'sources': self.DEFAULT_PIPFILE_SOURCES,
         })
+        data.setdefault('_meta', {}).setdefault('hash', {})['sha256'] = self.hash()
         data['default'] = default
         data['develop'] = develop
         with open(self.pipfile + '.lock', 'w') as f:
