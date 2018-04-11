@@ -1,3 +1,5 @@
+import json
+
 from pundle import create_parser
 from .lib import fake_parse
 
@@ -22,8 +24,7 @@ pytest = "*"
 '''
 
 
-PIPFILE_LOCK = '''
-{
+PIPFILE_LOCK = '''{
     "_meta": {
         "hash": {
             "sha256": "8d14434df45e0ef884d6c3f6e8048ba72335637a8631cc44792f52fd20b6f97a"
@@ -104,14 +105,14 @@ PIPFILE_LOCK = '''
             "version": "==3.2.2"
         }
     }
-}
-'''
+}'''
 
 
 def test_parse_pipfile(mocker):
     open_mock = mocker.patch('pundle.open')
     open_mock.side_effect = [
         mocker.mock_open(read_data=PIPFILE).return_value,
+        mocker.mock_open(read_data=PIPFILE_LOCK).return_value,
         mocker.mock_open(read_data=PIPFILE_LOCK).return_value,
     ]
     mocker.patch('pundle.op.exists')
@@ -127,6 +128,7 @@ def test_parse_pipfile_no_lock(mocker):
     open_mock.side_effect = [
         mocker.mock_open(read_data=PIPFILE).return_value,
         Exception('bam!'),
+        Exception('bam!'),
     ]
     mocker.patch('pundle.op.exists')
     mocker.patch('pundle.os.listdir')
@@ -134,3 +136,26 @@ def test_parse_pipfile_no_lock(mocker):
     suite = parser.create_suite()
     assert suite.need_freeze() == True
     assert 'requests' in suite.states
+
+
+def test_save_pipfile_lock(mocker):
+    open_mock = mocker.patch('pundle.open')
+    write_mock = mocker.MagicMock()
+    open_mock.side_effect = [
+        mocker.mock_open(read_data=PIPFILE).return_value,
+        mocker.mock_open(read_data=PIPFILE_LOCK).return_value,
+        mocker.mock_open(read_data=PIPFILE_LOCK).return_value,
+        write_mock,
+    ]
+    mocker.patch('pundle.op.exists')
+    mocker.patch('pundle.os.listdir')
+    parser = create_parser(**PARSER_ARGS)
+    suite = parser.create_suite()
+    assert suite.need_freeze() == False
+    assert 'requests' in suite.states
+    suite.save_frozen()
+    assert open_mock.call_count == 4
+    assert open_mock.call_args == mocker.call('...../bla/blu/Pipfile.lock', 'w')
+    assert write_mock.__enter__().write.called
+    # FIXME? this line produces error and it is right - we does not dump any dependencies here
+    # assert json.loads(write_mock.__enter__().write.call_args[0][0]) == json.loads(PIPFILE_LOCK)

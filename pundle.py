@@ -16,6 +16,8 @@ import shutil
 import subprocess
 import sys
 import shlex
+import copy
+import json
 import pkg_resources
 import pip
 
@@ -256,10 +258,11 @@ class RequirementState(object):
     """Holds requirement state, like what version do we have installed, is
     some version frozen or not, what requirement constrains do we have.
     """
-    def __init__(self, key, req=None, frozen=None, installed=None):
+    def __init__(self, key, req=None, frozen=None, installed=None, hashes=None):
         self.key = key
         self.requirement = req
         self.frozen = frozen
+        self.hashes = hashes
         self.installed = installed or []
         self.installed.sort()
         self.installed.reverse()
@@ -487,8 +490,11 @@ class Suite(object):
 
     def save_frozen(self):
         "Saves frozen files to disk"
-        for env in self.parser.envs():
-            self.parser.save_frozen(self.get_frozen_states(env), env)
+        states_by_env = dict(
+            (env, self.get_frozen_states(env))
+            for env in self.parser.envs()
+        )
+        self.parser.save_frozen(states_by_env)
 
 
 class Parser(object):
@@ -524,13 +530,22 @@ class Parser(object):
             return os.path.join(self.base_path, 'frozen_%s.txt' % env)
 
     def create_suite(self):
-        reqs, freezy, diry = self.parse_requirements(), self.parse_frozen(), self.parse_directory()
+        reqs = self.parse_requirements()
+        freezy = self.parse_frozen()
+        hashes = self.parse_frozen_hashes()
+        diry = self.parse_directory()
         state_keys = set(list(reqs.keys()) + list(freezy.keys()) + list(diry.keys()))
         suite = Suite(self, envs=self.envs())
         for key in state_keys:
             suite.add(
                 key,
-                RequirementState(key, reqs.get(key), freezy.get(key), diry.get(key, [])),
+                RequirementState(
+                    key,
+                    req=reqs.get(key),
+                    frozen=freezy.get(key),
+                    installed=diry.get(key, []),
+                    hashes=hashes.get(key),
+                ),
             )
         return suite
 
@@ -569,6 +584,11 @@ class Parser(object):
                 frozen_versions[name.lower()] = version
         return frozen_versions
 
+    def parse_frozen_hashes(self):
+        """This implementation does not support hashes yet
+        """
+        return {}
+
     def parse_requirements(self):
         all_requirements = {}
         for env, req_file in self.requirements_files.items():
@@ -585,14 +605,15 @@ class Parser(object):
                     all_requirements[req.key] = req
         return all_requirements
 
-    def save_frozen(self, states, env):
-        data = '\n'.join(sorted(
-            state.frozen_dump()
-            for state in states
-        )) + '\n'
-        frozen_file = self.get_frozen_file(env)
-        with open(frozen_file, 'w') as f:
-            f.write(data)
+    def save_frozen(self, states_by_env):
+        for env, states in states_by_env.items():
+            data = '\n'.join(sorted(
+                state.frozen_dump()
+                for state in states
+            )) + '\n'
+            frozen_file = self.get_frozen_file(env)
+            with open(frozen_file, 'w') as f:
+                f.write(data)
 
 
 class SingleParser(Parser):
@@ -628,36 +649,100 @@ class SetupParser(Parser):
 class PipfileParser(Parser):
     def __init__(self, **kw):
         self.pipfile = kw.pop('pipfile')
+        self.pipfile_envs = set([''])
         super(PipfileParser, self).__init__(**kw)
+
+    def envs(self):
+        return self.pipfile_envs
 
     def parse_requirements(self):
         import toml
         info = toml.load(open(self.pipfile))
-        reqs = []
-        for key, details in info['packages'].items():
-            if isinstance(details, str_types):
-                if details != '*':
-                    key = key + details  # details is a version requirement
+        all_requirements = {}
+        for info_key in info:
+            if not info_key.endswith('packages'):
+                continue
+            if '-' in info_key:
+                env, _ = info_key.split('-', 1)
             else:
-                raise PundleException('Unsupported Pipfile feature yet %s: %r' % (key, details))
-            reqs.append(CustomReq(key, '', source='Pipfile'))
-        requirements = dict((req.key, req) for req in reqs)
-        return requirements
+                env = ''
+            self.pipfile_envs.add(env)
+            for key, details in info[info_key].items():
+                if isinstance(details, str_types):
+                    if details != '*':
+                        key = key + details  # details is a version requirement
+                else:
+                    raise PundleException('Unsupported Pipfile feature yet %s: %r' % (key, details))
+                req = CustomReq(key, env, source='Pipfile')
+                if req.key in all_requirements:
+                    # if requirements exists in other env, then add this env too
+                    all_requirements[req.key].add_env(env)
+                else:
+                    all_requirements[req.key] = req
+        return all_requirements
 
     def parse_frozen(self):
-        import json
         try:
-            info = json.load(open(self.pipfile + '.lock'))
+            self.parsed_frozen = json.load(open(self.pipfile + '.lock'))
         except Exception:
             # there is no Pipfile.lock or it is broken
             return {}
         frozen_versions = {}
-        for key, details in info['default'].items():
-            frozen_versions[key] = details['version'].lstrip('=')
+        for env in self.parsed_frozen:
+            if env.startswith('_'):
+                # this is not an env
+                continue
+            for key, details in self.parsed_frozen[env].items():
+                frozen_versions[key] = details['version'].lstrip('=')
         return frozen_versions
 
-    def save_frozen(self, states, env):
-        raise NotImplemented('Pipfile.lock dump not yet implemented')
+    def parse_frozen_hashes(self):
+        try:
+            self.parsed_frozen = json.load(open(self.pipfile + '.lock'))
+        except Exception:
+            # there is no Pipfile.lock or it is broken
+            return {}
+        frozen_versions = {}
+        for env in self.parsed_frozen:
+            if env.startswith('_'):
+                # this is not an env
+                continue
+            for key, details in self.parsed_frozen[env].items():
+                frozen_versions[key] = details.get('hashes', [])
+        return frozen_versions
+
+    def save_frozen(self, states_by_env):
+        """Implementation is not complete.
+        """
+        default = {}
+        for state in states_by_env['']:
+            default[state.key] = {
+                'version': '==' + state.frozen,
+                'hashes': state.hashes,
+            }
+        develop = {}
+        for state in states_by_env['dev']:
+            develop[state.key] = {
+                'version': '==' + state.frozen,
+                'hashes': state.hashes,
+            }
+
+        data = copy.deepcopy(self.parsed_frozen)
+        data.setdefault('_meta', {
+            "pipfile-spec": 5,
+            "requires": {},
+            "sources": [
+                {
+                    "name": "pypi",
+                    "url": "https://pypi.python.org/simple",
+                    "verify_ssl": True
+                }
+            ]
+        })
+        data['default'] = default
+        data['develop'] = develop
+        with open(self.pipfile + '.lock', 'w') as f:
+            f.write(json.dumps(data, sort_keys=True, indent=4))
 
 
 def create_parser(**parser_args):
