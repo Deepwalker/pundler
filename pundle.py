@@ -19,7 +19,10 @@ import shlex
 import json
 import hashlib
 import pkg_resources
-import pip
+try:
+    from pip import main as pip_exec
+except ImportError:
+    from pip._internal import main as pip_exec
 
 # TODO bundle own version of distlib. Perhaps
 try:
@@ -233,7 +236,7 @@ class CustomReq(object):
             pass
         tmp_dir = tempfile.mkdtemp()
         try:
-            pip.main([
+            pip_exec([
                 'install',
                 '--no-deps',
                 '-t', tmp_dir,
@@ -439,7 +442,7 @@ class Suite(object):
                         state.key,
                         'Need',
                         state.requirement,
-                        'have not be frozen',
+                        'have not been frozen',
                         state.frozen,
                         ', installed',
                         state.installed
@@ -697,9 +700,17 @@ class PipfileParser(Parser):
                 if isinstance(details, str_types):
                     if details != '*':
                         key = key + details  # details is a version requirement
+                    req = CustomReq(key, env, source='Pipfile')
                 else:
-                    raise PundleException('Unsupported Pipfile feature yet %s: %r' % (key, details))
-                req = CustomReq(key, env, source='Pipfile')
+                    # a dict
+                    if 'file' in details or 'path' in details:
+                        raise PundleException('Unsupported Pipfile feature yet %s: %r' % (key, details))
+                    if 'git' in details:
+                        ### wow, this as a git package!
+                        req = CustomReq('git+%s#egg=%s' % (details['git'], key), env, source='Pipfile')
+                    else:
+                        # else just simple requirement
+                        req = CustomReq(key + details['version'], env, source='Pipfile')
                 if req.key in all_requirements:
                     # if requirements exists in other env, then add this env too
                     all_requirements[req.key].add_env(env)
@@ -717,7 +728,10 @@ class PipfileParser(Parser):
                 # this is not an env
                 continue
             for key, details in parsed_frozen[env].items():
-                frozen_versions[key] = details['version'].lstrip('=')
+                if 'vcs' in details:
+                    frozen_versions[key] = details['vcs']
+                else:
+                    frozen_versions[key] = details.get('version', '0.0.0').lstrip('=')
         return frozen_versions
 
     def parse_frozen_hashes(self):
@@ -768,10 +782,16 @@ class PipfileParser(Parser):
                 env_key = env
             reqs = data.setdefault(env_key, {})
             for state in states:
-                reqs[state.key] = {
-                    'version': '==' + state.frozen,
-                    'hashes': state.hashes or [],
-                }
+                if state.requirement.egg:
+                    egg, url, version = parse_vcs_requirement(state.requirement.line)
+                    reqs[state.key] = {
+                        'vcs': url,
+                    }
+                else:
+                    reqs[state.key] = {
+                        'version': '==' + state.frozen,
+                        'hashes': state.hashes or [],
+                    }
         with open(self.pipfile + '.lock', 'w') as f:
             f.write(json.dumps(data, sort_keys=True, indent=4))
 
