@@ -706,7 +706,7 @@ class PipfileParser(Parser):
                     if 'file' in details or 'path' in details:
                         raise PundleException('Unsupported Pipfile feature yet %s: %r' % (key, details))
                     if 'git' in details:
-                        ### wow, this as a git package!
+                        # wow, this as a git package!
                         req = CustomReq('git+%s#egg=%s' % (details['git'], key), env, source='Pipfile')
                     else:
                         # else just simple requirement
