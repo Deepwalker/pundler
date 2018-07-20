@@ -972,6 +972,8 @@ def entry_points():
         d = r.frozen_dist()
         if not d:
             continue
+        if isinstance(d, VCSDist):
+            continue
         scripts = d.get_entry_map().get('console_scripts', {})
         for name in scripts:
             entries[name] = d
