@@ -2,7 +2,7 @@ from __future__ import print_function
 import re
 try:
     from urllib.parse import urlparse, parse_qsl
-except ImportError:
+except ImportError:  # pragma: no cover
     from urlparse import urlparse, parse_qsl
 from collections import defaultdict
 from base64 import b64encode, b64decode
@@ -27,17 +27,17 @@ except ImportError:
 # TODO bundle own version of distlib. Perhaps
 try:
     from pip._vendor.distlib import locators
-except ImportError:
+except ImportError:  # pragma: no cover
     from pip.vendor.distlib import locators
 
 try:
     str_types = (basestring,)
-except NameError:
+except NameError:  # pragma: no cover
     str_types = (str, bytes)
 
 try:
     pkg_resources_parse_version = pkg_resources.SetuptoolsVersion
-except AttributeError:
+except AttributeError:  # pragma: no cover
     pkg_resources_parse_version = pkg_resources.packaging.version.Version
 
 
@@ -68,7 +68,7 @@ def parse_file(filename):
                 if s.startswith('-r'):
                     continue
                 if s.startswith('-e '):
-                    s = s[3:]
+                    s = s[3:].strip()
                 if parse_vcs_requirement(s):
                     res.append(s)
                 else:
@@ -235,11 +235,14 @@ class CustomReq(object):
         except OSError:
             pass
         tmp_dir = tempfile.mkdtemp()
+        print('Use temp dir', tmp_dir)
         try:
+            print('pip install --no-deps -t %s %s' % (tmp_dir, target_req))
             pip_exec([
                 'install',
                 '--no-deps',
                 '-t', tmp_dir,
+                '-v',
                 target_req
             ])
             for item in os.listdir(tmp_dir):
@@ -296,6 +299,9 @@ class RequirementState(object):
                 dist = self.install_frozen(suite)
         if install and not dist:
             dist = self.requirement.locate_and_install(suite, installed=self.get_installed())
+            if dist is None:
+                print('Package %s was not installed due some error' % self.key)
+                raise PundleException('Package %s was not installed due some error' % self.key)
             self.frozen = dist.version
             self.installed.append(dist)
             self.frozen = dist.version
@@ -354,7 +360,10 @@ class RequirementState(object):
         if self.frozen_dist() or not self.frozen:
             return
         envs = self.requirement.envs if self.requirement else ''
-        frozen_req = CustomReq("{}=={}".format(self.key, self.frozen), envs)
+        if test_vcs(self.frozen):
+            frozen_req = CustomReq(self.frozen, envs)
+        else:
+            frozen_req = CustomReq("{}=={}".format(self.key, self.frozen), envs)
         dist = frozen_req.locate_and_install(suite)
         self.installed.append(dist)
         return dist
@@ -486,9 +495,9 @@ class Suite(object):
         for state in self.states.values():
             state.install_frozen(self)
 
-    def activate_all(self, env=''):
+    def activate_all(self, envs=('',)):
         for state in self.required_states():
-            if '' in state.requirement.envs or env in state.requirement.envs:
+            if '' in state.requirement.envs or any(env in state.requirement.envs for env in envs):
                 state.activate()
 
     def save_frozen(self):
@@ -509,13 +518,16 @@ class Parser(object):
             base_path=None,
             directory='Pundledir',
             requirements_files=None,
-            frozen_files={'': 'frozen.txt'},
+            frozen_files=None,
             package=None,
     ):
         self.base_path = base_path or '.'
         self.directory = directory
         self.requirements_files = requirements_files
-        self.frozen_files = frozen_files
+        if frozen_files is None:
+            self.frozen_files = {'': 'frozen.txt'}
+        else:
+            self.frozen_files = frozen_files
         self.package = package
         self.package_envs = set([''])
 
@@ -600,7 +612,8 @@ class Parser(object):
                 source = 'requirements %s file' % env
             else:
                 source = 'requirements file'
-            for req in (CustomReq(line, env, source=source) for line in requirements):
+            for line in requirements:
+                req = CustomReq(line, env, source=source)
                 if req.key in all_requirements:
                     # if requirements exists in other env, then add this env too
                     all_requirements[req.key].add_env(env)
@@ -921,7 +934,8 @@ def activate():
         raise PundleException('frozen file is outdated')
     if suite.need_install():
         raise PundleException('Some dependencies not installed')
-    suite.activate_all(env=os.environ.get('PUNDLEENV') or '')
+    envs = (os.environ.get('PUNDLEENV') or '').split(',')
+    suite.activate_all(envs=envs)
     return suite
 
 
@@ -980,19 +994,6 @@ def entry_points():
     return entries
 
 
-def execute(interpreter, cmd, args):
-    # TODO proof implementation
-    # clean it
-    entries = entry_points()
-    if cmd not in entries:
-        print_message('Script is not found. Check if package is installed, or look at the `pundle entry_points`')
-        sys.exit(1)
-    exc = entries[cmd].get_entry_info('console_scripts', cmd).load(require=False)
-    sys.path.insert(0, '')
-    sys.argv = [cmd] + args
-    exc()
-
-
 class CmdRegister:
     commands = {}
     ordered = []
@@ -1048,7 +1049,16 @@ CmdRegister.cmdline('fixate')(fixate)
 @CmdRegister.cmdline('exec')
 def cmd_exec():
     "executes setuptools entry"
-    execute(sys.argv[0], sys.argv[2], sys.argv[3:])
+    cmd = sys.argv[2]
+    args = sys.argv[3:]
+    entries = entry_points()
+    if cmd not in entries:
+        print_message('Script is not found. Check if package is installed, or look at the `pundle entry_points`')
+        sys.exit(1)
+    exc = entries[cmd].get_entry_info('console_scripts', cmd).load()
+    sys.path.insert(0, '')
+    sys.argv = [cmd] + args
+    exc()
 
 
 @CmdRegister.cmdline('entry_points')
@@ -1166,6 +1176,18 @@ def cmd_env():
     subprocess.call(sys.argv[2:], env=aug_env)
 
 
+@CmdRegister.cmdline('print_env')
+def cmd_print_env():
+    "Prints PYTHONPATH. For usage with mypy and MYPYPATH"
+    suite = activate()
+    path = ':'.join(
+        state.frozen_dist().location
+        for state in suite.states.values()
+        if state.frozen_dist()
+    )
+    print(path)
+
+
 ENTRY_POINT_TEMPLATE = '''#! /usr/bin/env python
 import pundle; pundle.activate()
 pundle.entry_points()['{entry_point}'].get_entry_info('console_scripts', '{entry_point}').load(require=False)()
@@ -1221,7 +1243,14 @@ def show_requirements():
     suite = activate()
     for name, state in suite.states.items():
         if state.requirement:
-            print(name, 'frozen:', state.frozen, 'required:', state.requirement.req if state.requirement.req else 'VCS')
+            print(
+                name,
+                'frozen:',
+                state.frozen,
+                'required:',
+                state.requirement.req if state.requirement.req else 'VCS',
+                state.requirement.envs,
+            )
 
 
 # Single mode that you can use in console

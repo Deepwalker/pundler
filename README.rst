@@ -7,6 +7,7 @@ Pundle
 Changelog
 ---------
 
+-  PUNDLEENV can include comma separated envs
 -  Pipfile initial support. Only strings as versions now.
    Do not calculates hashes and do not use it yet.
 -  New setup.py support with mocking of setuptools.setup
