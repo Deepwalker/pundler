@@ -23,6 +23,7 @@ Changelog
 -  Added initial support for setup.py requirements. Helpful for package
    development.
 
+
 What is it all about?
 ---------------------
 
@@ -39,11 +40,12 @@ garbage and we must get rid of it.
    bin pinned. You will never fall in situation where you test old
    version of package.
 
+
 Why not Pipenv, I heard it is "for humans"?
 -----------------------------------------
 
-I don't think that anything that is based on virtualenv can be "for humans". And
-pundle far more friendly and supportive even without all this hype and with one dev.
+I don't think that anything that is based on virtualenv can be "for humans".
+
 
 How to
 ------
