@@ -56,6 +56,7 @@ def python_version_string():
         version_info = sys.version_info
     version_string = '{v.major}.{v.minor}.{v.micro}'.format(v=version_info)
     build, _ = platform.python_build()
+    build = build.replace(':', '_')  # windows do not understand `:` in path
     return '{}-{}-{}'.format(platform.python_implementation(), version_string, build)
 
 
