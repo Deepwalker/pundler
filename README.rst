@@ -30,7 +30,7 @@ What is it all about?
 Pundle get rid of virtualenv, because I think that virtualenv is pile of
 garbage and we must get rid of it.
 
--  Pundle install all packages and its versions to special folder. And
+-  Pundle installs all packages and their versions to special folder. And
    mount pinned, frozen versions on activate step.
 -  After that you program will use exactly this versions that were
    pinned in ``frozen.txt``.
@@ -42,7 +42,7 @@ garbage and we must get rid of it.
 
 
 Why not Pipenv, I heard it is "for humans"?
------------------------------------------
+-------------------------------------------
 
 I don't think that anything that is based on virtualenv can be "for humans".
 

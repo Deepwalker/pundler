@@ -1,3 +1,32 @@
+"""
+Data Model, start here to not get mad
+=====================================
+
+Main entity will be distribution, like Flask. Per key
+Pundle tracks three state parts:
+    1. requirement, like Flask>0.12.2.
+    2. frozen version, like ==0.12.2
+    3. installed distributions, like [flask==0.12.2, flask==0.10.0]
+
+Requirement basically is from file, like requirements.txt, setup.py or Pipfile. This requirements
+have source like `requirements.txt`. And base requirements can have dependencies. This
+dependencies are turned to requirements too with source like `Flask-Admin << requirements.txt`.
+To track requirements we use `CustomReq` class. It can work with PyPi and VCS requirements.
+CustomReq can have `self.req = pkg_resources.Requirement` or custom vcs line.
+
+Distribution is one of VCSDist or pkg_resources.DistInfoDistribution. VCSDist is to
+track installed VCS packages and pkg_resources.DistInfoDistribution is for PyPi packages.
+
+All three states of distribution are tracked inside `RequirementState` object that includes info
+about requirement, frozen version and installed versions.
+
+`Suite` keeps state of all distributions like a dictionary of RequirentStates.
+
+To populate Suite and to parse all requirements, frozen versions and what we have installed pundle
+uses `Parser`. There is plenty of them – `Parser` that works with `requirements.txt`,
+`SetupParser` that works with `setup.py`, PipfileParser that works with Pipfile and Pipfile.lock.
+"""
+
 from __future__ import print_function
 import re
 try:
@@ -50,6 +79,9 @@ class PundleException(Exception):
 
 
 def python_version_string():
+    """We use it to generate per python folder name, where
+    we will install all packages.
+    """
     if platform.python_implementation() == 'PyPy':
         version_info = sys.pypy_version_info
     else:
@@ -61,6 +93,8 @@ def python_version_string():
 
 
 def parse_file(filename):
+    """Helper to parse requirements.txt or frozen.txt.
+    """
     res = []
     with open(filename) as f:
         for line in f:
@@ -79,10 +113,14 @@ def parse_file(filename):
 
 
 def test_vcs(req):
+    """Checks if requirement line is for VCS.
+    """
     return '+' in req and req.index('+') == 3
 
 
 def parse_vcs_requirement(req):
+    """Parses VCS line to egg name, version etc.
+    """
     if '+' not in req:
         return None
     vcs, url = req.split('+', 1)
@@ -111,6 +149,8 @@ def parse_frozen_vcs(req):
 
 
 class VCSDist(object):
+    """ Represents installed VCS distribution.
+    """
     def __init__(self, directory):
         self.dir = directory
         name = op.split(directory)[-1]
@@ -135,6 +175,9 @@ class VCSDist(object):
 
 
 class CustomReq(object):
+    """Represents PyPi or VCS requirement.
+    Can locate and install it.
+    """
     def __init__(self, line, env, source=None):
         self.line = line
         self.egg = None
@@ -197,7 +240,7 @@ class CustomReq(object):
         return self.req.extras if self.req else []
 
     def locate(self, suite, prereleases=False):
-        # requirements can have somethin after `;` symbol that `locate` does not understand
+        # requirements can have something after `;` symbol that `locate` does not understand
         req = str(self.req).split(';', 1)[0]
         dist = suite.locate(req, prereleases=prereleases)
         if not dist:
@@ -301,7 +344,6 @@ class RequirementState(object):
         if install and not dist:
             dist = self.requirement.locate_and_install(suite, installed=self.get_installed())
             if dist is None:
-                print('Package %s was not installed due some error' % self.key)
                 raise PundleException('Package %s was not installed due some error' % self.key)
             self.frozen = dist.version
             self.installed.append(dist)
@@ -402,8 +444,8 @@ class AggregatingLocator(object):
 
 
 class Suite(object):
-    """
-    Main object that represents current directory pundle state
+    """Main object that represents current directory pundle state.
+    It tracks RequirementStates, envs, urls for package locator.
     """
     def __init__(self, parser, envs=[], urls=None):
         self.states = {}
@@ -634,11 +676,16 @@ class Parser(object):
 
 
 class SingleParser(Parser):
+    """Parser for console mode.
+    """
     def parse_requirements(self):
         return {}
 
 
 class SetupParser(Parser):
+    """Parser for `setup.py`. Because it mostly used to develop package, we
+    do not freeze packages to setup.py. We use `frozen.txt`.
+    """
     def parse_requirements(self):
         setup_info = get_info_from_setup(self.package)
         if setup_info is None:
@@ -664,6 +711,8 @@ class SetupParser(Parser):
 
 
 class PipfileParser(Parser):
+    """Parser for Pipfile and Pipfile.lock.
+    """
     DEFAULT_PIPFILE_SOURCES = [
         {
             'name': 'pypi',
@@ -811,6 +860,9 @@ class PipfileParser(Parser):
 
 
 def create_parser(**parser_args):
+    """Utility function that tried to figure out what Parser to use
+    in current directory.
+    """
     if parser_args.get('requirements_files'):
         return Parser(**parser_args)
     elif parser_args.get('package'):
@@ -840,7 +892,7 @@ def get_info_from_setup(path):
 
 
 def search_files_upward(start_path=None):
-    "Search for requirements.txt upward"
+    "Search for requirements.txt, setup.py or Pipfile upward"
     if not start_path:
         start_path = op.abspath(op.curdir)
     if any(
