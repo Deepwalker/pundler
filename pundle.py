@@ -1,3 +1,4 @@
+# encoding: utf-8
 """
 Data Model, start here to not get mad
 =====================================
@@ -23,7 +24,7 @@ about requirement, frozen version and installed versions.
 `Suite` keeps state of all distributions like a dictionary of RequirentStates.
 
 To populate Suite and to parse all requirements, frozen versions and what we have installed pundle
-uses `Parser`. There is plenty of them – `Parser` that works with `requirements.txt`,
+uses `Parser`. There is plenty of them - `Parser` that works with `requirements.txt`,
 `SetupParser` that works with `setup.py`, PipfileParser that works with Pipfile and Pipfile.lock.
 """
 
