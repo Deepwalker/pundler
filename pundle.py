@@ -53,6 +53,10 @@ try:
     from pip import main as pip_exec
 except ImportError:
     from pip._internal import main as pip_exec
+    from types import ModuleType
+
+    if isinstance(pip_exec, ModuleType):
+        pip_exec = pip_exec.main
 
 # TODO bundle own version of distlib. Perhaps
 try:
