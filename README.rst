@@ -27,7 +27,7 @@ Changelog
 What is it all about?
 ---------------------
 
-Pundle get rid of virtualenv, because I think that virtualenv is pile of
+Pundle get rid of virtualenv, because I think that virtualenv directory is pile of
 garbage and we must get rid of it.
 
 -  Pundle installs all packages and their versions to special folder. And
